@@ -20,9 +20,10 @@ const AvsFileType = {
   AVS_FILE_CROSSPLATFORM_PDFA: 0x0200 + 0x0009,
 } as const;
 
-// Base URL for x2t files - hardcoded since blob URL workers can't determine origin
-const BASE_URL = self.location.origin + "/x2t-1/";
-// const BASE_URL = self.location.origin + "/wasm/x2t/";
+// Base URL for x2t files - hardcoded since blob URL workers can't determine origin.
+// IMPORTANT: use `/x2t/` where `x2t.js` is actual JavaScript. The `/x2t-1/` bundle is compressed/binary
+// and will crash when loaded via importScripts.
+const BASE_URL = self.location.origin + "/x2t/";
 
 let x2t: any = null;
 let initPromise: Promise<void> | null = null;
@@ -32,7 +33,8 @@ let initPromise: Promise<void> | null = null;
  */
 async function initX2t(): Promise<void> {
   if (x2t) return;
-  // self.wasmBinaryFile = BASE_URL + "x2t.wasm";
+  // Force wasm URL (some builds rely on this in worker contexts)
+  (self as any).wasmBinaryFile = BASE_URL + "x2t.wasm";
 
   const scriptUrl = BASE_URL + "x2t.js";
 
