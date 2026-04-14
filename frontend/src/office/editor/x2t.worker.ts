@@ -43,6 +43,13 @@ async function initX2t(): Promise<void> {
     __filename: BASE_URL,
   });
 
+  // Provide a Module stub so emscripten locateFile resolves within BASE_URL.
+  // Must be set before importing the script.
+  (self as any).Module = {
+    locateFile: (path: string) => BASE_URL + path,
+    wasmBinaryFile: BASE_URL + "x2t.wasm",
+  };
+
   // Load x2t script in Worker context
   importScripts(scriptUrl);
 

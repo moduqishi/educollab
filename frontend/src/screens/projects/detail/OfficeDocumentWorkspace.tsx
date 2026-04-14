@@ -334,6 +334,14 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
         },
       });
 
+      // Prevent UI theme icon injection from crashing (some bundles read cached theme config from localStorage).
+      try {
+        (win as any).uitheme = (win as any).uitheme || {};
+        (win as any).uitheme.embedicons = true;
+      } catch {
+        // ignore
+      }
+
       // Keep parity with office-website: load api.js in iframe as well.
       const script = iframeDoc.createElement('script');
       script.src = apiUrl;

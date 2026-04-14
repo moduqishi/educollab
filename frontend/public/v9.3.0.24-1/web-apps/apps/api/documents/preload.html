@@ -38,6 +38,19 @@
 }();
 </script>
 
+    <script type="text/javascript">
+        // EduCollab: disable theme icon injection from stale localStorage that may point to external demo hosts.
+        // This prevents runtime crashes during icon sprite loading and keeps the editor offline-friendly.
+        try {
+            localStorage.removeItem('ui-theme');
+            localStorage.removeItem('ui-theme-id');
+        } catch (e) {}
+        try {
+            window.uitheme = window.uitheme || {};
+            window.uitheme.embedicons = true;
+        } catch (e) {}
+    </script>
+
     <link rel="preload" as="script" href="../../../vendor/requirejs/require.js"/>
     <script type="text/javascript" src="../../../vendor/jquery/jquery.min.js"></script>
     <script type="text/javascript" src="../../../vendor/socketio/socket.io.min.js"></script>

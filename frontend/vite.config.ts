@@ -15,14 +15,18 @@ export default defineConfig(({mode}) => {
           // The vendored `office-website` ships `x2t.wasm` as a brotli-compressed file.
           // Browsers will only transparently decompress it if we serve it with `Content-Encoding: br`.
           server.middlewares.use((req, res, next) => {
-            const url = req.url || '';
-            if (url.startsWith('/x2t/') && url.endsWith('/x2t.wasm')) {
+            const raw = req.url || '';
+            // strip query/hash for robust matching
+            const pathname = raw.split('?')[0].split('#')[0];
+            if (pathname.startsWith('/x2t/') && pathname.endsWith('/x2t.wasm')) {
               res.setHeader('Content-Encoding', 'br');
               res.setHeader('Content-Type', 'application/wasm');
+              res.setHeader('Cache-Control', 'no-store');
             }
-            if (url.startsWith('/x2t-1/') && url.endsWith('/x2t.wasm')) {
+            if (pathname.startsWith('/x2t-1/') && pathname.endsWith('/x2t.wasm')) {
               res.setHeader('Content-Encoding', 'br');
               res.setHeader('Content-Type', 'application/wasm');
+              res.setHeader('Cache-Control', 'no-store');
             }
             next();
           });
