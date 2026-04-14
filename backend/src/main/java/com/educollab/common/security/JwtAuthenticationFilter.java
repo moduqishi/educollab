@@ -3,5 +3,32 @@ import jakarta.servlet.FilterChain; import jakarta.servlet.ServletException; imp
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
   private final JwtService jwtService; public JwtAuthenticationFilter(JwtService jwtService) { this.jwtService = jwtService; }
-  @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException { String header = request.getHeader(HttpHeaders.AUTHORIZATION); if (header != null && header.startsWith("Bearer ")) { try { JwtPrincipal principal = jwtService.parse(header.substring(7)); var auth = new UsernamePasswordAuthenticationToken(principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + principal.role().name()))); SecurityContextHolder.getContext().setAuthentication(auth); } catch (Exception ignored) { SecurityContextHolder.clearContext(); } } filterChain.doFilter(request, response); }
+  @Override
+  protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+      throws ServletException, IOException {
+    String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+    String bearer = null;
+    if (header != null && header.startsWith("Bearer ")) bearer = header.substring(7);
+
+    // For embedded editors (e.g. office web-apps) that can't easily send Authorization headers,
+    // allow passing JWT via query param for a narrow set of endpoints (file download / office doc).
+    if (bearer == null) {
+      String uri = request.getRequestURI();
+      String qp = request.getParameter("access_token");
+      if (qp != null && !qp.isBlank() && (uri != null) && (uri.startsWith("/api/files/") || uri.startsWith("/api/documents/"))) {
+        bearer = qp.trim();
+      }
+    }
+
+    if (bearer != null) {
+      try {
+        JwtPrincipal principal = jwtService.parse(bearer);
+        var auth = new UsernamePasswordAuthenticationToken(principal, null, List.of(new SimpleGrantedAuthority("ROLE_" + principal.role().name())));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+      } catch (Exception ignored) {
+        SecurityContextHolder.clearContext();
+      }
+    }
+    filterChain.doFilter(request, response);
+  }
 }

@@ -34,6 +34,13 @@ public class LocalDbMigrations implements ApplicationRunner {
     jdbc.execute("UPDATE discussion_posts SET category='GENERAL' WHERE category IS NULL");
     jdbc.execute("UPDATE discussion_posts SET status='OPEN' WHERE status IS NULL");
 
+    // documents: kind/office_ext/file_asset_id (dual-mode NOTE/OFFICE)
+    ensureColumn("documents", "kind", "VARCHAR(20) NOT NULL DEFAULT 'NOTE'");
+    ensureColumn("documents", "office_ext", "VARCHAR(10)");
+    ensureColumn("documents", "file_asset_id", "BIGINT");
+    ensureColumn("document_versions", "file_asset_id", "BIGINT");
+    jdbc.execute("UPDATE documents SET kind='NOTE' WHERE kind IS NULL");
+
     // file_assets.owner_type: older local DBs used H2 ENUM('DOCUMENT','PROJECT','TASK') which rejects new values.
     // Convert it to VARCHAR so new owner types (e.g. DISCUSSION_POST) work.
     try {

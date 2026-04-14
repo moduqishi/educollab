@@ -98,13 +98,28 @@ export function createApiClient(options: ApiClientOptions) {
     documentDetail: (id: number) => request<DocumentRecord>(`/api/documents/${id}`),
     createDocument: (payload: { projectId: number; title: string; currentContent: string }) =>
       request<DocumentRecord>('/api/documents', { method: 'POST', body: JSON.stringify(payload) }),
+    createOfficeDocument: async (payload: { projectId: number; title: string; ext: 'docx' | 'xlsx' | 'pptx'; file: File }) => {
+      const form = new FormData();
+      form.append('projectId', String(payload.projectId));
+      form.append('title', payload.title);
+      form.append('ext', payload.ext);
+      form.append('file', payload.file);
+      return request<DocumentRecord>('/api/documents/office', { method: 'POST', body: form });
+    },
     renameDocument: (id: number, title: string) => request<DocumentRecord>(`/api/documents/${id}`, { method: 'PUT', body: JSON.stringify({ title }) }),
     autosaveDocument: (id: number, payload: { currentContent: string; excerpt: string; saveVersion: boolean; versionLabel?: string }) =>
       request<DocumentRecord>(`/api/documents/${id}/autosave`, { method: 'POST', body: JSON.stringify(payload) }),
     documentVersions: (id: number) => request<DocumentVersionRecord[]>(`/api/documents/${id}/versions`),
     saveDocumentVersion: (id: number, payload: { currentContent: string; versionLabel: string }) =>
       request<DocumentVersionRecord>(`/api/documents/${id}/versions`, { method: 'POST', body: JSON.stringify({ currentContent: payload.currentContent, versionLabel: payload.versionLabel, saveVersion: true, excerpt: '' }) }),
-    restoreDocumentVersion: (versionId: number) => request<DocumentVersionRecord>(`/api/documents/versions/${versionId}/restore`),
+    restoreDocumentVersion: (versionId: number) => request<DocumentRecord>(`/api/documents/versions/${versionId}/restore`, { method: 'POST' }),
+    saveOfficeDocument: async (docId: number, file: File, opts?: { createVersion?: boolean; versionLabel?: string }) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (opts?.createVersion) form.append('createVersion', 'true');
+      if (opts?.versionLabel) form.append('versionLabel', opts.versionLabel);
+      return request<DocumentRecord>(`/api/documents/${docId}/office/save`, { method: 'POST', body: form });
+    },
     files: (ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST', ownerId: number) => request<FileAssetRecord[]>(`/api/files?ownerType=${ownerType}&ownerId=${ownerId}`),
     uploadFile: async (ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST', ownerId: number, file: File) => {
       const form = new FormData();

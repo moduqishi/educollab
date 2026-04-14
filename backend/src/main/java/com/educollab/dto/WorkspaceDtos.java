@@ -12,11 +12,11 @@ public class WorkspaceDtos {
   public record DiscussionSaveRequest(Long projectId, String title, String content, String category) {}
   public record DiscussionReplyRequest(String content) {}
   public record DiscussionUpdateRequest(String status, String category) {}
-  public record DocumentRecord(Long id, Long projectId, String projectName, String title, String excerpt, String updatedAt, List<String> collaborators, String collabKey, String currentContent) {}
+  public record DocumentRecord(Long id, Long projectId, String projectName, String title, String excerpt, String updatedAt, List<String> collaborators, String collabKey, String currentContent, String kind, String officeExt, Long fileAssetId) {}
   public record DocumentSaveRequest(Long projectId, String title, String currentContent) {}
   public record DocumentUpdateRequest(String title) {}
   public record DocumentAutosaveRequest(String currentContent, String excerpt, boolean saveVersion, String versionLabel) {}
-  public record DocumentVersionRecord(Long id, String label, String createdBy, String createdAt, String snapshotContent) {}
+  public record DocumentVersionRecord(Long id, String label, String createdBy, String createdAt, String snapshotContent, Long fileAssetId) {}
   public record NotificationItem(Long id, String title, String content, boolean read, String createdAt, String type) {}
   public record DashboardSummary(int activeProjects, int pendingTasks, int unreadNotifications, List<ProjectRecord> projects, List<TaskRecord> urgentTasks, List<DocumentRecord> documents) {}
   public record ProjectStats(int taskCount, int completedTaskCount, int discussionCount, int documentCount, int releaseCount, int commitCount) {}

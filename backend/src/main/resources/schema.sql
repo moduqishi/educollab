@@ -103,6 +103,9 @@ CREATE TABLE IF NOT EXISTS documents (
   excerpt TEXT,
   collab_key VARCHAR(150) NOT NULL UNIQUE,
   current_content LONGTEXT,
+  kind VARCHAR(20) NOT NULL DEFAULT 'NOTE',
+  office_ext VARCHAR(10),
+  file_asset_id BIGINT,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -111,6 +114,7 @@ CREATE TABLE IF NOT EXISTS document_versions (
   document_id BIGINT NOT NULL,
   label VARCHAR(150),
   snapshot_content LONGTEXT,
+  file_asset_id BIGINT,
   created_by BIGINT,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
@@ -208,3 +212,9 @@ CREATE TABLE IF NOT EXISTS ai_usage_logs (
 -- Older databases might have `discussion_posts` without category/status columns.
 ALTER TABLE discussion_posts ADD COLUMN IF NOT EXISTS category VARCHAR(40) NOT NULL DEFAULT 'GENERAL';
 ALTER TABLE discussion_posts ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'OPEN';
+
+-- documents dual-mode (NOTE/OFFICE)
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'NOTE';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS office_ext VARCHAR(10);
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_asset_id BIGINT;
+ALTER TABLE document_versions ADD COLUMN IF NOT EXISTS file_asset_id BIGINT;

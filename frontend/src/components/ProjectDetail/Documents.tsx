@@ -376,13 +376,7 @@ function DocumentEditor({ api, initialDoc, onClose }: { api: Api; initialDoc: Do
                               className="h-7 px-2 text-[10px]"
                               onClick={async () => {
                                 const restored = await api.restoreDocumentVersion(v.id);
-                                replaceContent(restored.snapshotContent || '');
-                                await api.autosaveDocument(doc.id, {
-                                  currentContent: restored.snapshotContent || '',
-                                  excerpt: stripHtml(restored.snapshotContent || '').slice(0, 80),
-                                  saveVersion: true,
-                                  versionLabel: `Restore: ${v.label || 'version'}`,
-                                });
+                                replaceContent(restored.currentContent || '');
                                 await loadSideData();
                               }}
                             >

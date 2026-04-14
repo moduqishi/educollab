@@ -390,7 +390,20 @@ public class WorkspaceService {
 
     public DocumentRecord toDocumentRecord(DocumentEntity entity) {
         List<String> collaborators = projectMemberRepository.findByProjectId(entity.getProject().getId()).stream().map(item -> item.getUser().getName()).toList();
-        return new DocumentRecord(entity.getId(), entity.getProject().getId(), entity.getProject().getName(), entity.getTitle(), entity.getExcerpt(), formatter.format(entity.getUpdatedAt()), collaborators, entity.getCollabKey(), entity.getCurrentContent());
+        return new DocumentRecord(
+            entity.getId(),
+            entity.getProject().getId(),
+            entity.getProject().getName(),
+            entity.getTitle(),
+            entity.getExcerpt(),
+            formatter.format(entity.getUpdatedAt()),
+            collaborators,
+            entity.getCollabKey(),
+            entity.getCurrentContent(),
+            entity.getKind() != null ? entity.getKind().name() : "NOTE",
+            entity.getOfficeExt(),
+            entity.getFileAssetId()
+        );
     }
 
     @Transactional

@@ -100,7 +100,10 @@ export interface DocumentRecord {
   updatedAt: string;
   collaborators: string[];
   collabKey: string;
-  currentContent: string;
+  currentContent: string | null;
+  kind?: 'NOTE' | 'OFFICE' | string;
+  officeExt?: 'docx' | 'xlsx' | 'pptx' | string | null;
+  fileAssetId?: number | null;
 }
 
 export interface DocumentVersionRecord {
@@ -108,7 +111,8 @@ export interface DocumentVersionRecord {
   label: string;
   createdBy: string;
   createdAt: string;
-  snapshotContent: string;
+  snapshotContent: string | null;
+  fileAssetId?: number | null;
 }
 
 export interface NotificationItem {

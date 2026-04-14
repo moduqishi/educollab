@@ -67,12 +67,16 @@ export function DocumentsPage() {
                         <CardDescription className="truncate">{d.projectName}</CardDescription>
                       </div>
                       <Badge variant="outline" className="text-[11px]">
-                        文档
+                        {(d.kind || 'NOTE') === 'OFFICE' ? `OFFICE · ${(d.officeExt || 'file').toUpperCase()}` : 'NOTE'}
                       </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="text-sm text-muted-foreground line-clamp-3">{d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '—'}</div>
+                    <div className="text-sm text-muted-foreground line-clamp-3">
+                      {(d.kind || 'NOTE') === 'OFFICE'
+                        ? d.excerpt || `Office 文档（${d.officeExt || 'file'}）`
+                        : d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '—'}
+                    </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>更新：{d.updatedAt}</span>
                       <Button size="sm" variant="outline" className="h-8" onClick={() => nav(`/app/projects/${d.projectId}/documents/${d.id}`)}>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, Search } from 'lucide-react';
+import { FileSpreadsheet, FileText, FileType, Presentation, Plus, Search } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { useApi } from '@/app/api';
 import { setTitle } from '@/app/title';
@@ -25,10 +25,20 @@ export function ProjectDocumentsPage() {
 
   const [kw, setKw] = React.useState('');
   const [open, setOpen] = React.useState(false);
+  const [kind, setKind] = React.useState<'NOTE' | 'OFFICE'>('NOTE');
+  const [ext, setExt] = React.useState<'docx' | 'xlsx' | 'pptx'>('docx');
   const [title, setTitleText] = React.useState('');
+  const [file, setFile] = React.useState<File | null>(null);
 
   const createM = useMutation({
     mutationFn: (payload: { projectId: number; title: string; currentContent: string }) => api.createDocument(payload),
+    onSuccess: async () => {
+      await refresh();
+    },
+  });
+
+  const createOfficeM = useMutation({
+    mutationFn: (payload: { projectId: number; title: string; ext: 'docx' | 'xlsx' | 'pptx'; file: File }) => api.createOfficeDocument(payload),
     onSuccess: async () => {
       await refresh();
     },
@@ -50,7 +60,12 @@ export function ProjectDocumentsPage() {
             open={open}
             onOpenChange={(v) => {
               setOpen(v);
-              if (!v) setTitleText('');
+              if (!v) {
+                setTitleText('');
+                setKind('NOTE');
+                setExt('docx');
+                setFile(null);
+              }
             }}
           >
             <DialogTrigger render={<Button className="gap-2" />}>
@@ -58,29 +73,68 @@ export function ProjectDocumentsPage() {
             </DialogTrigger>
             <DialogContent className="max-w-[680px]">
               <DialogHeader>
-                <DialogTitle>新建协作文档</DialogTitle>
+                <DialogTitle>新建文档</DialogTitle>
               </DialogHeader>
-              <div className="space-y-2 py-2">
-                <Label>标题</Label>
-                <Input value={title} onChange={(e) => setTitleText(e.target.value)} placeholder="例如：接口联调记录 / 需求评审纪要 / 迭代计划" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+                <div className="space-y-2 md:col-span-2">
+                  <Label>类型</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant={kind === 'NOTE' ? 'default' : 'outline'} className="rounded-full" onClick={() => setKind('NOTE')} type="button">
+                      <FileText size={14} className="mr-2" /> Note
+                    </Button>
+                    <Button variant={kind === 'OFFICE' && ext === 'docx' ? 'default' : 'outline'} className="rounded-full" onClick={() => { setKind('OFFICE'); setExt('docx'); }} type="button">
+                      <FileType size={14} className="mr-2" /> Word
+                    </Button>
+                    <Button variant={kind === 'OFFICE' && ext === 'xlsx' ? 'default' : 'outline'} className="rounded-full" onClick={() => { setKind('OFFICE'); setExt('xlsx'); }} type="button">
+                      <FileSpreadsheet size={14} className="mr-2" /> Excel
+                    </Button>
+                    <Button variant={kind === 'OFFICE' && ext === 'pptx' ? 'default' : 'outline'} className="rounded-full" onClick={() => { setKind('OFFICE'); setExt('pptx'); }} type="button">
+                      <Presentation size={14} className="mr-2" /> PPT
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>标题</Label>
+                  <Input value={title} onChange={(e) => setTitleText(e.target.value)} placeholder={kind === 'OFFICE' ? '例如：阶段总结（Office）' : '例如：接口联调记录 / 需求评审纪要 / 迭代计划'} />
+                </div>
+                {kind === 'OFFICE' ? (
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>上传文件（.{ext}）</Label>
+                    <Input
+                      type="file"
+                      accept={ext === 'docx' ? '.docx' : ext === 'xlsx' ? '.xlsx' : '.pptx'}
+                      onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    />
+                    <div className="text-[11px] text-muted-foreground">提示：Office 编辑器运行时需要额外静态资源（web-apps）。如果打开后提示未检测到运行时，请把 office-website 的 web-apps 放到前端 public。</div>
+                  </div>
+                ) : null}
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)} disabled={createM.isPending}>
+                <Button variant="outline" onClick={() => setOpen(false)} disabled={createM.isPending || createOfficeM.isPending}>
                   取消
                 </Button>
                 <Button
-                  disabled={!title.trim() || createM.isPending}
+                  disabled={
+                    !title.trim() ||
+                    (kind === 'NOTE' ? createM.isPending : createOfficeM.isPending) ||
+                    (kind === 'OFFICE' && !file)
+                  }
                   onClick={async () => {
-                    const created = await createM.mutateAsync({
-                      projectId: detail.project.id,
-                      title: title.trim(),
-                      currentContent: '',
-                    });
+                    const created =
+                      kind === 'NOTE'
+                        ? await createM.mutateAsync({ projectId: detail.project.id, title: title.trim(), currentContent: '' })
+                        : await createOfficeM.mutateAsync({ projectId: detail.project.id, title: title.trim(), ext, file: file! });
                     setOpen(false);
                     nav(`/app/projects/${detail.project.id}/documents/${created.id}`);
                   }}
                 >
-                  {createM.isPending ? '正在创建…' : '创建并打开'}
+                  {kind === 'NOTE'
+                    ? createM.isPending
+                      ? '正在创建…'
+                      : '创建并打开'
+                    : createOfficeM.isPending
+                      ? '正在上传…'
+                      : '创建并打开'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -118,12 +172,16 @@ export function ProjectDocumentsPage() {
                         <CardDescription className="truncate">{detail.project.name}</CardDescription>
                       </div>
                       <Badge variant="outline" className="text-[11px]">
-                        文档
+                        {(d.kind || 'NOTE') === 'OFFICE' ? `OFFICE · ${(d.officeExt || 'file').toUpperCase()}` : 'NOTE'}
                       </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="text-sm text-muted-foreground line-clamp-3">{d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '—'}</div>
+                    <div className="text-sm text-muted-foreground line-clamp-3">
+                      {(d.kind || 'NOTE') === 'OFFICE'
+                        ? d.excerpt || `Office 文档（${d.officeExt || 'file'}）`
+                        : d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '—'}
+                    </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>更新：{d.updatedAt}</span>
                       <Button size="sm" variant="outline" className="h-8" onClick={() => nav(`/app/projects/${detail.project.id}/documents/${d.id}`)}>

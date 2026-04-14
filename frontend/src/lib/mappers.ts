@@ -66,9 +66,13 @@ export function mapTask(task: TaskRecord): AppTask {
 }
 
 export function mapDocument(doc: DocumentRecord): AppDocument {
+  const kind = (doc.kind || 'NOTE') as string;
   return {
     ...doc,
-    preview: doc.excerpt || stripHtml(doc.currentContent).slice(0, 120),
+    preview:
+      kind === 'OFFICE'
+        ? doc.excerpt || `Office 文档（${doc.officeExt || 'file'}）`
+        : doc.excerpt || stripHtml(doc.currentContent || '').slice(0, 120),
     collabUrl: `${COLLAB_BASE}/${doc.collabKey}`,
   };
 }

@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { COLLAB_BASE, stripHtml } from '@/lib/mappers';
 import type { DocumentVersionRecord, FileAssetRecord } from '@/lib/types';
+import { OfficeDocumentWorkspace } from '@/screens/projects/detail/OfficeDocumentWorkspace';
 
 type AwarenessUser = { id: number | string; name: string; avatar?: string };
 
@@ -36,6 +37,15 @@ export function DocumentWorkspacePage() {
     enabled: !!id,
     queryFn: () => api.documentDetail(id),
   });
+
+  // If this is an OFFICE document, render the office workspace instead of the NOTE realtime editor.
+  if (docQ.data?.kind === 'OFFICE') {
+    return (
+      <div className="space-y-4">
+        <OfficeDocumentWorkspace doc={docQ.data} />
+      </div>
+    );
+  }
 
   React.useEffect(() => {
     if (docQ.data) setTitle([docQ.data.title, docQ.data.projectName, '文档']);
@@ -348,13 +358,8 @@ export function DocumentWorkspacePage() {
                                     disabled={restoreM.isPending}
                                     onClick={async () => {
                                       const restored = await restoreM.mutateAsync(v.id);
-                                      replaceContent(restored.snapshotContent || '');
-                                      await autosaveM.mutateAsync({
-                                        currentContent: restored.snapshotContent || '',
-                                        excerpt: stripHtml(restored.snapshotContent || '').slice(0, 80),
-                                        saveVersion: true,
-                                        versionLabel: `恢复：${v.label || '版本'}`,
-                                      });
+                                      replaceContent(restored.currentContent || '');
+                                      await docQ.refetch();
                                       await versionsQ.refetch();
                                     }}
                                   >
