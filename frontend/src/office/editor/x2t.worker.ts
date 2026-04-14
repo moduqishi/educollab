@@ -1,7 +1,5 @@
 /// <reference lib="webworker" />
 
-import { AvsFileType, X2tConvertParams, X2tConvertResult } from "./types";
-
 /**
  * X2T Converter Web Worker
  *
@@ -10,6 +8,17 @@ import { AvsFileType, X2tConvertParams, X2tConvertResult } from "./types";
  */
 
 /* eslint-disable no-restricted-globals */
+
+// NOTE: This worker must be loaded as a classic worker (not module) because it uses `importScripts`.
+// Therefore it must not contain any ESM `import ...` statements, otherwise the browser will throw:
+// "Cannot use import statement outside a module".
+
+// Minimal enum values used by the worker.
+// Keep in sync with `frontend/src/office/editor/types.ts`.
+const AvsFileType = {
+  AVS_FILE_DOCUMENT_DOC: 0x0040 + 0x0002,
+  AVS_FILE_CROSSPLATFORM_PDFA: 0x0200 + 0x0009,
+} as const;
 
 // Base URL for x2t files - hardcoded since blob URL workers can't determine origin
 const BASE_URL = self.location.origin + "/x2t-1/";
@@ -128,7 +137,7 @@ function writeInputs({
   formatTo,
   data,
   media,
-}: X2tConvertParams) {
+}: any) {
   const params = {
     m_sFileFrom: fileFrom,
     m_sThemeDir: "/working/themes",
@@ -181,7 +190,7 @@ async function convert({
   media,
   fonts,
   themes,
-}: X2tConvertParams): Promise<X2tConvertResult> {
+}: any): Promise<any> {
   const fromPath = "/working/" + fileFrom;
   const toPath = "/working/" + fileTo;
   const files = [fromPath, toPath, xmlPath];
@@ -271,9 +280,9 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         if (result.output) {
           transferables.push(result.output.buffer);
         }
-        Object.values(result.media).forEach((m) =>
-          transferables.push(m.buffer),
-        );
+        Object.values(result.media).forEach((m: any) => {
+          if (m?.buffer) transferables.push(m.buffer as ArrayBuffer);
+        });
 
         self.postMessage(
           { id, type: "convert:done", payload: result },
