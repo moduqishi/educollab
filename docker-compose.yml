@@ -1,0 +1,76 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: educollab-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: educollab
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: ${DB_USERNAME:-educollab}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-educollab}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./backend/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    container_name: educollab-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: ${DB_URL:-jdbc:mysql://mysql:3306/educollab?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
+      DB_USERNAME: ${DB_USERNAME:-educollab}
+      DB_PASSWORD: ${DB_PASSWORD:-educollab}
+      JWT_SECRET: ${JWT_SECRET:-educollab-demo-jwt-secret-change-me-32-bytes-minimum}
+      AI_PROVIDER: ${AI_PROVIDER:-openai-compatible}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/app/data/uploads}
+      GIT_REPO_ROOT: ${GIT_REPO_ROOT:-/app/data/repos}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend-data:/app/data
+
+  collab-server:
+    build:
+      context: ./collab-server
+    container_name: educollab-collab
+    restart: unless-stopped
+    environment:
+      COLLAB_PORT: ${COLLAB_PORT:-1234}
+      COLLAB_DATA_DIR: ${COLLAB_DATA_DIR:-/app/data/collab}
+    ports:
+      - "${COLLAB_PORT:-1234}:1234"
+    volumes:
+      - collab-data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+        VITE_COLLAB_BASE_URL: ${VITE_COLLAB_BASE_URL:-ws://localhost:1234}
+    container_name: educollab-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - collab-server
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+
+volumes:
+  mysql-data:
+  backend-data:
+  collab-data:

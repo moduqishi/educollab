@@ -1,0 +1,9 @@
+node_modules
+frontend/node_modules
+collab-server/node_modules
+frontend/dist
+backend/target
+collab-server/data
+backend/data
+*.log
+.DS_Store

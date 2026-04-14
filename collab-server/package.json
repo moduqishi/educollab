@@ -1,0 +1,17 @@
+{
+  "name": "educollab-collab-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.js",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@hocuspocus/extension-logger": "^2.15.3",
+    "@hocuspocus/server": "^2.15.3",
+    "@hocuspocus/transformer": "^2.15.3",
+    "y-leveldb": "^0.2.0",
+    "yjs": "^13.6.24"
+  }
+}
