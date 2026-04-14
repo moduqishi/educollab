@@ -16,6 +16,12 @@ import { Separator } from '@/components/ui/separator';
 import { COLLAB_BASE } from '@/lib/mappers';
 import type { DocumentRecord, DocumentVersionRecord } from '@/lib/types';
 
+import { EditorServer } from '@/office/editor/server';
+import io, { MockSocket, type MockSocketOptions } from '@/office/editor/socket';
+import { createFetchProxy } from '@/office/editor/fetch';
+import { createXHRProxy } from '@/office/editor/xhr';
+import { API_JS, APP_ROOT, PRELOAD_HTML, getDocumentType } from '@/office/editor/utils';
+
 type AwarenessUser = { id: number | string; name: string; avatar?: string };
 
 declare global {
@@ -31,10 +37,24 @@ function withAccessToken(url: string, token: string | null) {
   return u.toString();
 }
 
+type RoomEvent = {
+  id: string;
+  from: string;
+  ts: number;
+  payload: any;
+};
+
+function makeId() {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+  const rnd = (globalThis.crypto as any)?.randomUUID?.();
+  return rnd || Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
 export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
   const api = useApi();
   const { token, session } = useAuth();
-  const [runtimeReady, setRuntimeReady] = React.useState<boolean>(() => !!window.DocsAPI);
+  const [runtimeReady, setRuntimeReady] = React.useState<boolean>(() => !!window.DocsAPI?.DocEditor);
+  const [editorError, setEditorError] = React.useState<string | null>(null);
 
   const versionsQ = useQuery({
     queryKey: ['documentVersions', doc.id],
@@ -57,6 +77,14 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
   const [connected, setConnected] = React.useState(false);
   const [onlineUsers, setOnlineUsers] = React.useState<AwarenessUser[]>([]);
   const providerRef = React.useRef<HocuspocusProvider | null>(null);
+  const roomConnIdRef = React.useRef<string>('');
+  const roomEventsRef = React.useRef<Y.Array<RoomEvent> | null>(null);
+  const roomLastSeenRef = React.useRef<number>(0);
+  const deliverRoomEventsRef = React.useRef<(() => void) | null>(null);
+  const socketRef = React.useRef<MockSocket | null>(null);
+  const editorRef = React.useRef<any>(null);
+  const serverRef = React.useRef<EditorServer | null>(null);
+  const suppressBroadcastRef = React.useRef<boolean>(false);
 
   React.useEffect(() => {
     if (!session) return;
@@ -67,6 +95,12 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
       document: ydoc,
     });
     providerRef.current = provider;
+    roomConnIdRef.current = `${session.profile.id}-${makeId()}`;
+
+    // Message bus: server->client broadcast payloads (OnlyOffice coEditing messages)
+    const events = ydoc.getArray<RoomEvent>('office:s2c');
+    roomEventsRef.current = events;
+    roomLastSeenRef.current = 0;
 
     const updateOnline = () => {
       try {
@@ -86,78 +120,274 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
       name: session.profile.name,
       avatar: session.profile.avatar,
     });
+    provider.awareness.setLocalStateField('office', {
+      connId: roomConnIdRef.current,
+    });
 
     provider.on('status', ({ status }: any) => setConnected(status === 'connected'));
     provider.awareness.on('change', updateOnline);
     updateOnline();
 
+    const deliverEvents = () => {
+      // If socket not yet created by OnlyOffice runtime, keep events queued.
+      if (!socketRef.current) return;
+      const evArr = events.toArray();
+      for (let i = roomLastSeenRef.current; i < evArr.length; i++) {
+        const ev = evArr[i];
+        if (!ev || ev.from === roomConnIdRef.current) continue;
+        // deliver as if from server to the current web-app socket
+        try {
+          suppressBroadcastRef.current = true;
+          socketRef.current?.server.emit('message', ev.payload);
+        } finally {
+          suppressBroadcastRef.current = false;
+        }
+      }
+      roomLastSeenRef.current = evArr.length;
+    };
+
+    deliverRoomEventsRef.current = deliverEvents;
+    const onEventsChange = () => deliverEvents();
+    events.observe(onEventsChange);
+    deliverEvents();
+
     return () => {
       try {
+        events.unobserve(onEventsChange);
         provider.destroy();
       } catch {
         // ignore
       }
       providerRef.current = null;
+      roomEventsRef.current = null;
+      deliverRoomEventsRef.current = null;
     };
   }, [doc.collabKey, session]);
 
   const primaryDownloadUrl = doc.fileAssetId ? withAccessToken(api.downloadFileUrl(doc.fileAssetId), token) : null;
 
   React.useEffect(() => {
-    // Auto-load OnlyOffice api.js if web-apps runtime exists under /public/web-apps
-    if (window.DocsAPI) {
-      setRuntimeReady(true);
-      return;
-    }
-    const scriptId = 'onlyoffice-api-js';
-    if (document.getElementById(scriptId)) return;
-    const s = document.createElement('script');
-    s.id = scriptId;
-    s.src = '/web-apps/apps/api/documents/api.js';
-    s.async = true;
-    s.onload = () => setRuntimeReady(true);
-    s.onerror = () => setRuntimeReady(false);
-    document.head.appendChild(s);
-  }, []);
-
-  React.useEffect(() => {
-    // Best-effort: initialize OnlyOffice editor if runtime exists.
-    // Note: real editing/saving/collab wiring depends on office-website runtime; we keep a guarded init here.
+    // Full office-website style boot: preload iframe + inject io/xhr/fetch/worker + DocsAPI init.
+    if (!session) return;
     if (!doc.fileAssetId) return;
-    const containerId = 'onlyoffice-editor';
-    const el = document.getElementById(containerId);
-    if (!el) return;
-
-    if (!window.DocsAPI || !window.DocsAPI.DocEditor) return;
     if (!primaryDownloadUrl) return;
 
-    try {
-      // eslint-disable-next-line no-new
-      new window.DocsAPI.DocEditor(containerId, {
-        document: {
-          fileType: doc.officeExt || 'docx',
-          key: doc.collabKey,
-          title: doc.title,
-          url: primaryDownloadUrl,
-        },
-        editorConfig: {
-          lang: 'zh',
-          user: {
-            id: session?.profile.id,
-            name: session?.profile.name,
+    setEditorError(null);
+
+    const apiUrl = APP_ROOT + API_JS;
+    const preloadUrl = APP_ROOT + PRELOAD_HTML;
+
+    const server = new EditorServer({
+      getState: () => ({ plugins: 'featured' }),
+      broadcastMessage: (payload) => {
+        if (suppressBroadcastRef.current) return;
+        const events = roomEventsRef.current;
+        if (!events) return;
+        events.push([
+          {
+            id: makeId(),
+            from: roomConnIdRef.current,
+            ts: Date.now(),
+            payload,
           },
-          customization: {
-            compactHeader: false,
-            compactToolbar: false,
+        ]);
+      },
+      onSaveOfficeFile: async ({ file, fileName }) => {
+        const savedFile = new File([file], fileName, { type: 'application/octet-stream' });
+        await api.saveOfficeDocument(doc.id, savedFile);
+        await versionsQ.refetch();
+      },
+    });
+    server.setUser({ id: String(session.profile.id), name: session.profile.name });
+    server.setKey(doc.collabKey);
+    serverRef.current = server;
+
+    // Attach local server to socket connections (created inside the editor iframe)
+    MockSocket.on('connect', server.handleConnect);
+    MockSocket.on('disconnect', server.handleDisconnect);
+
+    let destroyed = false;
+    let cleanupInjected = () => {};
+
+    const loadRuntimeScript = () =>
+      new Promise<void>((resolve, reject) => {
+        if (window.DocsAPI?.DocEditor) return resolve();
+        const existing = document.querySelector<HTMLScriptElement>(`script[src="${apiUrl}"]`);
+        if (existing) {
+          existing.addEventListener('load', () => resolve(), { once: true });
+          existing.addEventListener('error', () => reject(new Error('Failed to load DocsAPI script')), { once: true });
+          return;
+        }
+        const s = document.createElement('script');
+        s.src = apiUrl;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Failed to load DocsAPI script'));
+        document.head.appendChild(s);
+      });
+
+    const ensurePreloadIframe = () => {
+      const holder = document.getElementById('onlyoffice-preload-holder');
+      if (!holder) return;
+      if (holder.querySelector('iframe')) return;
+      const iframe = document.createElement('iframe');
+      iframe.className = 'w-0 h-0 hidden';
+      iframe.src = preloadUrl;
+      holder.appendChild(iframe);
+    };
+
+    const injectIntoFrameEditor = () => {
+      const iframe = document.querySelector<HTMLIFrameElement>('iframe[name="frameEditor"]');
+      const win = iframe?.contentWindow as any;
+      const iframeDoc = iframe?.contentDocument;
+      if (!win || !iframeDoc) {
+        throw new Error('frameEditor iframe not loaded');
+      }
+
+      const XHR = createXHRProxy(win.XMLHttpRequest);
+      const fetchProxy = createFetchProxy(win);
+      const _Worker = win.Worker;
+
+      XHR.use((request: Request) => server.handleRequest(request));
+      fetchProxy.use((request: Request) => server.handleRequest(request));
+
+      const roomIo = (url?: string, options?: MockSocketOptions) => {
+        const socket = io(url, {
+          ...(options || {}),
+          debug: false,
+          onServerEmit: (_event, _args) => {
+            // no-op; co-edit broadcast is handled via server.options.broadcastMessage
           },
+        });
+        socketRef.current = socket;
+        // flush queued broadcasts now that socket is available
+        setTimeout(() => deliverRoomEventsRef.current?.(), 0);
+        return socket;
+      };
+
+      Object.assign(win, {
+        io: roomIo,
+        XMLHttpRequest: XHR,
+        fetch: fetchProxy,
+        Worker: function (url: string, options?: WorkerOptions) {
+          const u = new URL(url, location.origin);
+          return new _Worker(u.href.replace(u.origin, location.origin), options);
         },
       });
-    } catch {
-      // ignore init errors; UI below will show fallback hints
-    }
-    // OnlyOffice editor manages its own DOM; no cleanup API guaranteed here.
+
+      const script = iframeDoc.createElement('script');
+      script.src = apiUrl;
+      iframeDoc.body.appendChild(script);
+
+      cleanupInjected = () => {
+        try {
+          // best-effort restore; iframe will be reloaded on editor destroy anyway
+          win.XMLHttpRequest = win.XMLHttpRequest;
+        } catch {
+          // ignore
+        }
+      };
+    };
+
+    const boot = async () => {
+      try {
+        ensurePreloadIframe();
+        await loadRuntimeScript();
+        if (destroyed) return;
+        setRuntimeReady(true);
+
+        // Load backend file into the local server (convert -> Editor.bin)
+        const res = await fetch(primaryDownloadUrl);
+        if (!res.ok) throw new Error(`Failed to download file: ${res.status}`);
+        const buf = await res.arrayBuffer();
+        await server.openBuffer(buf, {
+          fileType: doc.officeExt || 'docx',
+          title: doc.title,
+          key: doc.collabKey,
+        });
+
+        const d = server.getDocument();
+        const u = server.getUser();
+        const documentType = getDocumentType(d.fileType);
+
+        // eslint-disable-next-line no-new
+        const editor = new window.DocsAPI!.DocEditor('onlyoffice-editor', {
+          document: {
+            fileType: d.fileType,
+            key: d.key,
+            title: d.title,
+            url: d.url,
+            permissions: {
+              edit: d.fileType !== 'pdf',
+              chat: false,
+              rename: true,
+              protect: true,
+              review: false,
+              print: false,
+            },
+          },
+          documentType,
+          editorConfig: {
+            lang: 'zh',
+            coEditing: {
+              mode: 'fast',
+              change: false,
+            },
+            user: { ...u },
+            customization: {
+              // keep defaults; integrate with EduCollab theme later
+              compactHeader: false,
+              compactToolbar: false,
+            },
+          },
+          events: {
+            onAppReady: () => {
+              try {
+                injectIntoFrameEditor();
+              } catch (e) {
+                console.error(e);
+              }
+            },
+            onError: (e: any) => {
+              console.error('OnlyOffice error', e);
+            },
+            onDocumentStateChange: (e: any) => {
+              // dirty state events (optional)
+              if ((import.meta as any).env?.DEV) console.log('Document state change', e);
+            },
+          },
+          width: '100%',
+          height: '100%',
+          type: 'desktop',
+        });
+
+        editorRef.current = editor;
+        server.setClient({ buildVersion: window.DocsAPI!.DocEditor.version() });
+      } catch (e: any) {
+        console.error(e);
+        setEditorError(e?.message || String(e));
+        setRuntimeReady(false);
+      }
+    };
+
+    boot();
+
+    return () => {
+      destroyed = true;
+      cleanupInjected();
+      try {
+        editorRef.current?.destroyEditor?.();
+      } catch {
+        // ignore
+      }
+      editorRef.current = null;
+      socketRef.current = null;
+      serverRef.current = null;
+      MockSocket.off('connect', server.handleConnect);
+      MockSocket.off('disconnect', server.handleDisconnect);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.id, doc.fileAssetId, doc.officeExt, doc.title, primaryDownloadUrl, runtimeReady]);
+  }, [doc.id, doc.fileAssetId, doc.collabKey, doc.officeExt, doc.title, primaryDownloadUrl, session]);
 
   return (
     <div className="space-y-4">
@@ -221,14 +451,20 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
           <CardTitle className="text-sm">Office Editor</CardTitle>
         </CardHeader>
         <CardContent>
-          {!runtimeReady || !window.DocsAPI ? (
+          <div id="onlyoffice-preload-holder" />
+
+          {!runtimeReady || !window.DocsAPI?.DocEditor ? (
             <div className="text-sm text-muted-foreground space-y-2">
-              <div className="font-medium text-foreground">未检测到 OnlyOffice 运行时（web-apps）</div>
-              <div>请把 `office-website` 的 `web-apps` 静态资源放到：</div>
+              <div className="font-medium text-foreground">未检测到 OnlyOffice 运行时（web-apps）或初始化失败</div>
+              {editorError ? <div className="text-xs text-red-600 break-all">{editorError}</div> : null}
+              <div>请确认已把 `office-website` 静态资源放到：</div>
               <pre className="text-xs bg-muted/30 border rounded-xl p-3 overflow-auto">
-                <code>/Users/cake/toys/educollab/frontend/public/web-apps</code>
+                <code>/Users/cake/toys/educollab/frontend/public/v9.3.0.24-1</code>
               </pre>
-              <div className="text-[12px]">放置后刷新页面即可加载 `/web-apps/apps/api/documents/api.js`。</div>
+              <div className="text-[12px]">
+                资源放置后刷新页面即可加载：
+                <span className="font-mono">/v9.3.0.24-1/web-apps/apps/api/documents/api.js</span>
+              </div>
             </div>
           ) : (
             <div id="onlyoffice-editor" className="w-full h-[calc(100vh-320px)] min-h-[620px] border rounded-xl bg-muted/10" />
