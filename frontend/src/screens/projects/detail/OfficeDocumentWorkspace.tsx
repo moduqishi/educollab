@@ -415,7 +415,8 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
   }, [doc.id, doc.fileAssetId, doc.collabKey, doc.officeExt, doc.title, primaryDownloadUrl, session]);
 
   return (
-    <div className="space-y-4">
+    <div className="px-8 pb-10">
+      <div className="max-w-[1500px] mx-auto space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="rounded-full">
@@ -513,118 +514,118 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
         </div>
       </div>
 
-      <Card className="border-muted/60 overflow-hidden">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Office Editor</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div id="onlyoffice-preload-holder" />
+      <div id="onlyoffice-preload-holder" />
 
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4">
+        <div className="rounded-2xl border border-muted/70 overflow-hidden bg-white shadow-[0_24px_80px_rgba(9,15,25,0.06)]">
+          <div className="h-12 border-b flex items-center justify-between px-4">
+            <div className="text-sm font-semibold truncate">{doc.title}</div>
+            <div className="text-xs text-muted-foreground truncate">{doc.projectName}</div>
+          </div>
           {!runtimeReady || !window.DocsAPI?.DocEditor ? (
-            <div className="text-sm text-muted-foreground space-y-2">
-              <div className="font-medium text-foreground">未检测到 OnlyOffice 运行时（web-apps）或初始化失败</div>
+            <div className="p-4 text-sm text-muted-foreground space-y-2">
+              <div className="font-medium text-foreground">Office 编辑器未就绪</div>
               {editorError ? <div className="text-xs text-red-600 break-all">{editorError}</div> : null}
-              <div>请确认已把 `office-website` 静态资源放到：</div>
-              <pre className="text-xs bg-muted/30 border rounded-xl p-3 overflow-auto">
-                <code>/Users/cake/toys/educollab/frontend/public/v9.3.0.24-1</code>
-              </pre>
               <div className="text-[12px]">
-                资源放置后刷新页面即可加载：
-                <span className="font-mono">/v9.3.0.24-1/web-apps/apps/api/documents/api.js</span>
+                如一直卡住，请先硬刷新（⌘⇧R）并打开控制台把报错截图给我。
               </div>
             </div>
           ) : (
-            <div id="onlyoffice-editor" className="w-full h-[calc(100vh-320px)] min-h-[620px] border rounded-xl bg-muted/10" />
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4">
-        <Card className="border-muted/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">协同参与者</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            {onlineUsers.length ? (
-              <div className="space-y-2">
-                {onlineUsers.map((u) => (
-                  <div key={String(u.id)} className="flex items-center justify-between">
-                    <div className="font-medium text-foreground">{u.name}</div>
-                    <div className="text-xs text-muted-foreground">#{String(u.id)}</div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div>暂无在线成员。</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-muted/60">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">版本</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {versionsQ.isLoading ? (
-              <div className="p-4">
-                <PageLoading label="加载版本…" />
-              </div>
-            ) : versionsQ.isError ? (
-              <div className="p-4">
-                <PageError title="版本加载失败" onRetry={() => versionsQ.refetch()} />
-              </div>
-            ) : (
-              <ScrollArea className="h-[360px]">
-                <div className="divide-y">
-                  {(versionsQ.data || []).length ? (
-                    (versionsQ.data || []).map((v: DocumentVersionRecord) => (
-                      <div key={v.id} className="p-4">
-                        <div className="text-sm font-semibold">{v.label || '版本'}</div>
-                        <div className="mt-1 text-[11px] text-muted-foreground">
-                          {v.createdBy} · {v.createdAt}
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="rounded-full"
-                            disabled={restoreM.isPending}
-                            onClick={() => restoreM.mutate(v.id)}
-                          >
-                            {restoreM.isPending ? '恢复中…' : '恢复为当前'}
-                          </Button>
-                          {v.fileAssetId ? (
-                            <a href={withAccessToken(api.downloadFileUrl(v.fileAssetId), token)} target="_blank" rel="noreferrer">
-                              <Button size="sm" variant="outline" className="rounded-full gap-2">
-                                <Download size={14} /> 下载该版本
-                              </Button>
-                            </a>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-4 text-sm text-muted-foreground">暂无版本。</div>
-                  )}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-          <Separator />
-          <CardContent className="p-4 space-y-2">
-            <Label className="text-[11px] text-muted-foreground">手动保存版本</Label>
-            <Input
-              type="file"
-              accept=".docx,.xlsx,.pptx"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) uploadAndSaveM.mutate(f);
-                e.currentTarget.value = '';
-              }}
+            <div
+              id="onlyoffice-editor"
+              className="w-full h-[calc(100vh-260px)] min-h-[720px] bg-muted/10"
+              style={{ height: 'calc(100vh - 260px)' }}
             />
-            <div className="text-[11px] text-muted-foreground">提示：当前先通过“上传并保存”生成新内容；后续接入 office-website 后可做到编辑器内一键保存。</div>
-          </CardContent>
-        </Card>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <Card className="border-muted/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">协同参与者</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {onlineUsers.length ? (
+                <div className="space-y-2">
+                  {onlineUsers.map((u) => (
+                    <div key={String(u.id)} className="flex items-center justify-between">
+                      <div className="font-medium text-foreground">{u.name}</div>
+                      <div className="text-xs text-muted-foreground">#{String(u.id)}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div>暂无在线成员。</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-muted/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">版本</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {versionsQ.isLoading ? (
+                <div className="p-4">
+                  <PageLoading label="加载版本…" />
+                </div>
+              ) : versionsQ.isError ? (
+                <div className="p-4">
+                  <PageError title="版本加载失败" onRetry={() => versionsQ.refetch()} />
+                </div>
+              ) : (
+                <ScrollArea className="h-[320px]">
+                  <div className="divide-y">
+                    {(versionsQ.data || []).length ? (
+                      (versionsQ.data || []).map((v: DocumentVersionRecord) => (
+                        <div key={v.id} className="p-4">
+                          <div className="text-sm font-semibold">{v.label || '版本'}</div>
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            {v.createdBy} · {v.createdAt}
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-full"
+                              disabled={restoreM.isPending}
+                              onClick={() => restoreM.mutate(v.id)}
+                            >
+                              {restoreM.isPending ? '恢复中…' : '恢复为当前'}
+                            </Button>
+                            {v.fileAssetId ? (
+                              <a href={withAccessToken(api.downloadFileUrl(v.fileAssetId), token)} target="_blank" rel="noreferrer">
+                                <Button size="sm" variant="outline" className="rounded-full gap-2">
+                                  <Download size={14} /> 下载
+                                </Button>
+                              </a>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-sm text-muted-foreground">暂无版本。</div>
+                    )}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+            <Separator />
+            <CardContent className="p-4 space-y-2">
+              <Label className="text-[11px] text-muted-foreground">手动保存版本</Label>
+              <Input
+                type="file"
+                accept=".docx,.xlsx,.pptx"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadAndSaveM.mutate(f);
+                  e.currentTarget.value = '';
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
       </div>
     </div>
   );
