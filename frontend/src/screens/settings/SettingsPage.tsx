@@ -6,13 +6,14 @@ import { PageHero } from '@/screens/shell/PageHero';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { API_BASE, COLLAB_BASE } from '@/lib/mappers';
 
 export function SettingsPage() {
   const { session, logout } = useAuth();
   React.useEffect(() => setTitle(['设置']), []);
 
-  const apiBase = ((import.meta as any).env?.VITE_API_BASE_URL as string) || 'http://localhost:8080';
-  const collabBase = ((import.meta as any).env?.VITE_COLLAB_BASE_URL as string) || 'ws://localhost:1234';
+  const apiBase = API_BASE;
+  const collabBase = COLLAB_BASE;
 
   return (
     <div>
@@ -71,4 +72,3 @@ export function SettingsPage() {
     </div>
   );
 }
-

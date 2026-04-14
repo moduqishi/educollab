@@ -6,8 +6,23 @@ function normalizeApiBase(raw: string) {
   return trimmed.endsWith('/api') ? trimmed.slice(0, -4) : trimmed;
 }
 
-const API_BASE = normalizeApiBase((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8080');
-const COLLAB_BASE = (import.meta as any).env?.VITE_COLLAB_BASE_URL || 'ws://localhost:1234';
+function defaultApiBase() {
+  if (typeof window === 'undefined') return 'http://localhost:8080';
+  const proto = window.location.protocol || 'http:';
+  const host = window.location.hostname || 'localhost';
+  return `${proto}//${host}:8080`;
+}
+
+function defaultCollabBase() {
+  if (typeof window === 'undefined') return 'ws://localhost:1234';
+  const isHttps = window.location.protocol === 'https:';
+  const proto = isHttps ? 'wss:' : 'ws:';
+  const host = window.location.hostname || 'localhost';
+  return `${proto}//${host}:1234`;
+}
+
+export const API_BASE = normalizeApiBase((import.meta as any).env?.VITE_API_BASE_URL || defaultApiBase());
+export const COLLAB_BASE = (import.meta as any).env?.VITE_COLLAB_BASE_URL || defaultCollabBase();
 
 export function mapRole(role: BackendRole): AppRole {
   return role === 'TEACHER' ? 'teacher' : 'student';

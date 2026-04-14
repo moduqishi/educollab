@@ -17,10 +17,8 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { stripHtml } from '@/lib/mappers';
+import { COLLAB_BASE, stripHtml } from '@/lib/mappers';
 import type { DocumentVersionRecord, FileAssetRecord } from '@/lib/types';
-
-const COLLAB_BASE = (import.meta as any).env?.VITE_COLLAB_BASE_URL || 'ws://localhost:1234';
 
 type AwarenessUser = { id: number | string; name: string; avatar?: string };
 

@@ -30,11 +30,9 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { createApiClient } from '@/lib/api';
 import type { DocumentRecord, DocumentVersionRecord, FileAssetRecord, ProjectDetail } from '@/lib/types';
-import { stripHtml } from '@/lib/mappers';
+import { COLLAB_BASE, stripHtml } from '@/lib/mappers';
 
 type Api = ReturnType<typeof createApiClient>;
-
-const COLLAB_BASE = (import.meta as any).env?.VITE_COLLAB_BASE_URL || 'ws://localhost:1234';
 
 export function Documents({ api, detail, onRefresh }: { api: Api; detail: ProjectDetail; onRefresh: () => Promise<void> }) {
   const [selectedDocId, setSelectedDocId] = useState<number | null>(null);

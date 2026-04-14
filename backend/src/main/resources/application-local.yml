@@ -1,5 +1,6 @@
 server:
   port: 8080
+  address: 0.0.0.0
 spring:
   datasource:
     # local dev: file-based H2 so data persists across restarts (no docker / no mysql)
