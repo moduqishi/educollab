@@ -376,15 +376,17 @@ export class EditorServer {
         break;
       case "saveChanges":
         // Basic co-edit relay: acknowledge locally, then broadcast the change payload to peers.
-        send({
+        const ack = {
           type: "unSaveLock",
           index: -1,
           syncChangesIndex: ++this.syncChangesIndex,
           time: +new Date(),
-        });
+        };
+        send(ack);
         try {
           // Broadcast the original message (OnlyOffice expects `type: "saveChanges"` payload from server).
           // We also attach the current syncChangesIndex as a hint.
+          void this.options.broadcastMessage?.(ack);
           void this.options.broadcastMessage?.({
             ...msg,
             syncChangesIndex: this.syncChangesIndex,
