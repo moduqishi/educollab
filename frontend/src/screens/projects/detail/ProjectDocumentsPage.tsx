@@ -134,7 +134,9 @@ export function ProjectDocumentsPage() {
                       ? '正在创建…'
                       : '创建并打开'
                     : createOfficeM.isPending
-                      ? '正在上传…'
+                      ? file
+                        ? '正在上传…'
+                        : '正在创建…'
                       : '创建并打开'}
                 </Button>
               </DialogFooter>

@@ -146,7 +146,8 @@
         // EduCollab: old theme caches may contain absolute URLs from the original demo host.
         // Always normalize to the current origin to avoid fetching from external domains.
         try {
-            url = url.replace(/^https?:\\/\\/office-editor\\.ziziyi\\.com\\//, location.origin + '/');
+            // handle both "https://..." and "//..." protocol-relative URLs
+            url = url.replace(/^(?:https?:)?\\/\\/office-editor\\.ziziyi\\.com\\//, location.origin + '/');
         } catch (e) {}
 
         let base_url = !url.endsWith('/') ? url + '/' : url;
@@ -167,7 +168,8 @@
             base_url = base_url.replace('..','./resources');
 
         if ( window.Common && window.Common.Utils )
-            window.Common.Utils.injectSvgIcons([base_url + 'iconssmall@2.5x.svg', base_url + 'iconsbig@2.5x.svg', base_url + 'iconshuge@2.5x.svg', '../../common/main/resources/img/doc-formats/formats@2.5x.svg'], true);
+            // EduCollab: do not request optional doc-formats sprite here (often absent in vendored bundles).
+            window.Common.Utils.injectSvgIcons([base_url + 'iconssmall@2.5x.svg', base_url + 'iconsbig@2.5x.svg', base_url + 'iconshuge@2.5x.svg'], true);
         else {
             window.uitheme.svg_icons = [base_url + 'iconssmall@2.5x.svg', base_url + 'iconsbig@2.5x.svg', base_url + 'iconshuge@2.5x.svg'];
         }
@@ -350,7 +352,9 @@ let svg_icons = window.uitheme.svg_icons || [
     './resources/img/iconssmall@2.5x.svg',
     './resources/img/iconsbig@2.5x.svg',
     './resources/img/iconshuge@2.5x.svg',
-    '../../common/main/resources/img/doc-formats/formats@2.5x.svg'
+    // EduCollab: doc-formats sprite is optional and frequently missing in slim bundles.
+    // Keeping it here causes noisy 404s and may break icon injection in some browsers.
+    // '../../common/main/resources/img/doc-formats/formats@2.5x.svg'
 ];
 
 window.Common = {
