@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { COLLAB_BASE } from '@/lib/mappers';
+import { cn } from '@/lib/utils';
 import type { DocumentRecord, DocumentVersionRecord } from '@/lib/types';
 
 import { EditorServer } from '@/office/editor/server';
@@ -29,6 +30,7 @@ type AwarenessUser = { id: number | string; name: string; avatar?: string };
 declare global {
   interface Window {
     DocsAPI?: any;
+    __EDUCOLLAB_OFFICE_IO__?: any;
   }
 }
 
@@ -37,6 +39,18 @@ function withAccessToken(url: string, token: string | null) {
   const u = new URL(url, window.location.origin);
   u.searchParams.set('access_token', token);
   return u.toString();
+}
+
+function safePreview(v: any) {
+  try {
+    if (v == null) return '';
+    if (typeof v === 'string') return v.slice(0, 180);
+    if (typeof v === 'object' && typeof v.type === 'string') return `{type:${v.type}}`;
+    const s = JSON.stringify(v);
+    return s.length > 180 ? s.slice(0, 180) + '…' : s;
+  } catch {
+    return String(v);
+  }
 }
 
 type RoomEvent = {
@@ -61,6 +75,9 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
   const [editorError, setEditorError] = React.useState<string | null>(null);
   const [renameOpen, setRenameOpen] = React.useState(false);
   const [title, setTitle] = React.useState(doc.title || '');
+  const [sockConnected, setSockConnected] = React.useState(false);
+  const [sockSeen, setSockSeen] = React.useState(false);
+  const [sockLog, setSockLog] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     setTitle(doc.title || '');
@@ -228,8 +245,19 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
     serverRef.current = server;
 
     // Attach local server to socket connections (created inside the editor iframe)
-    MockSocket.on('connect', server.handleConnect);
-    MockSocket.on('disconnect', server.handleDisconnect);
+    const onSockConnect = ({ socket }: any) => {
+      setSockSeen(true);
+      setSockConnected(true);
+      setSockLog((prev) => [`[sock] connect id=${socket?.id || ''}`, ...prev].slice(0, 30));
+      server.handleConnect({ socket });
+    };
+    const onSockDisconnect = ({ socket }: any) => {
+      setSockConnected(false);
+      setSockLog((prev) => [`[sock] disconnect id=${socket?.id || ''}`, ...prev].slice(0, 30));
+      server.handleDisconnect({ socket });
+    };
+    MockSocket.on('connect', onSockConnect);
+    MockSocket.on('disconnect', onSockDisconnect);
 
     let destroyed = false;
     let cleanupInjected = () => {};
@@ -279,9 +307,12 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
       const roomIo = (url?: string, options?: MockSocketOptions) => {
         const socket = io(url, {
           ...(options || {}),
-          debug: false,
-          onServerEmit: (_event, _args) => {
-            // no-op; co-edit broadcast is handled via server.options.broadcastMessage
+          debug: !!(import.meta as any).env?.DEV,
+          onClientEmit: (event, args) => {
+            setSockLog((prev) => [`[sock] emit ${event} ${safePreview(args?.[0])}`, ...prev].slice(0, 30));
+          },
+          onServerEmit: (event, args) => {
+            setSockLog((prev) => [`[sock] <- ${event} ${safePreview(args?.[0])}`, ...prev].slice(0, 30));
           },
         });
         socketRef.current = socket;
@@ -289,6 +320,9 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
         setTimeout(() => deliverRoomEventsRef.current?.(), 0);
         return socket;
       };
+
+      // Expose to preload.html so it can force using our io() instead of vendor socket.io.
+      window.__EDUCOLLAB_OFFICE_IO__ = roomIo;
 
       Object.assign(win, {
         io: roomIo,
@@ -300,6 +334,7 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
         },
       });
 
+      // Keep parity with office-website: load api.js in iframe as well.
       const script = iframeDoc.createElement('script');
       script.src = apiUrl;
       iframeDoc.body.appendChild(script);
@@ -373,8 +408,12 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
                 console.error(e);
               }
             },
+            onDocumentReady: () => {
+              setSockLog((prev) => ['[editor] document ready', ...prev].slice(0, 30));
+            },
             onError: (e: any) => {
               console.error('OnlyOffice error', e);
+              setSockLog((prev) => [`[editor] error ${safePreview(e)}`, ...prev].slice(0, 30));
             },
             onDocumentStateChange: (e: any) => {
               // dirty state events (optional)
@@ -408,8 +447,13 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
       editorRef.current = null;
       socketRef.current = null;
       serverRef.current = null;
-      MockSocket.off('connect', server.handleConnect);
-      MockSocket.off('disconnect', server.handleDisconnect);
+      MockSocket.off('connect', onSockConnect);
+      MockSocket.off('disconnect', onSockDisconnect);
+      try {
+        delete window.__EDUCOLLAB_OFFICE_IO__;
+      } catch {
+        // ignore
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.id, doc.fileAssetId, doc.collabKey, doc.officeExt, doc.title, primaryDownloadUrl, session]);
@@ -557,6 +601,31 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
               ) : (
                 <div>暂无在线成员。</div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-muted/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Office 连接诊断</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-muted-foreground space-y-2">
+              <div className="flex items-center justify-between">
+                <span>MockSocket 连接</span>
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'rounded-full',
+                    sockConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : sockSeen ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-muted',
+                  )}
+                >
+                  {sockConnected ? 'Connected' : sockSeen ? 'Disconnected' : 'Not seen'}
+                </Badge>
+              </div>
+              <ScrollArea className="h-[140px]">
+                <div className="space-y-1 font-mono">
+                  {sockLog.length ? sockLog.map((l, idx) => <div key={idx} className="truncate">{l}</div>) : <div>（暂无日志）</div>}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
 

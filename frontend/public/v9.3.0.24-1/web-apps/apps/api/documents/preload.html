@@ -41,6 +41,15 @@
     <link rel="preload" as="script" href="../../../vendor/requirejs/require.js"/>
     <script type="text/javascript" src="../../../vendor/jquery/jquery.min.js"></script>
     <script type="text/javascript" src="../../../vendor/socketio/socket.io.min.js"></script>
+    <script type="text/javascript">
+        // EduCollab: force OnlyOffice to use the injected MockSocket-compatible `io()`.
+        // The parent page will set `window.__EDUCOLLAB_OFFICE_IO__`.
+        try {
+            if (window.parent && window.parent.__EDUCOLLAB_OFFICE_IO__) {
+                window.io = window.parent.__EDUCOLLAB_OFFICE_IO__;
+            }
+        } catch (e) {}
+    </script>
     <script type="text/javascript" src="../../../vendor/xregexp/xregexp-all-min.js"></script>
     <script type="text/javascript" src="../../../../sdkjs/common/AllFonts.js"></script>
     <script type="text/javascript" src="../../../../sdkjs/word/sdk-all-min.js"></script>
