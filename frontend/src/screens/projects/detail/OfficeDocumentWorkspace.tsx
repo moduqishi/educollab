@@ -262,6 +262,26 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
     let destroyed = false;
     let cleanupInjected = () => {};
 
+    const roomIo = (url?: string, options?: MockSocketOptions) => {
+      const socket = io(url, {
+        ...(options || {}),
+        debug: !!(import.meta as any).env?.DEV,
+        onClientEmit: (event, args) => {
+          setSockLog((prev) => [`[sock] emit ${event} ${safePreview(args?.[0])}`, ...prev].slice(0, 30));
+        },
+        onServerEmit: (event, args) => {
+          setSockLog((prev) => [`[sock] <- ${event} ${safePreview(args?.[0])}`, ...prev].slice(0, 30));
+        },
+      });
+      socketRef.current = socket;
+      // flush queued broadcasts now that socket is available
+      setTimeout(() => deliverRoomEventsRef.current?.(), 0);
+      return socket;
+    };
+
+    // Expose early so preload.html can pick it up immediately.
+    window.__EDUCOLLAB_OFFICE_IO__ = roomIo;
+
     const loadRuntimeScript = () =>
       new Promise<void>((resolve, reject) => {
         if (window.DocsAPI?.DocEditor) return resolve();
@@ -303,26 +323,6 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
 
       XHR.use((request: Request) => server.handleRequest(request));
       fetchProxy.use((request: Request) => server.handleRequest(request));
-
-      const roomIo = (url?: string, options?: MockSocketOptions) => {
-        const socket = io(url, {
-          ...(options || {}),
-          debug: !!(import.meta as any).env?.DEV,
-          onClientEmit: (event, args) => {
-            setSockLog((prev) => [`[sock] emit ${event} ${safePreview(args?.[0])}`, ...prev].slice(0, 30));
-          },
-          onServerEmit: (event, args) => {
-            setSockLog((prev) => [`[sock] <- ${event} ${safePreview(args?.[0])}`, ...prev].slice(0, 30));
-          },
-        });
-        socketRef.current = socket;
-        // flush queued broadcasts now that socket is available
-        setTimeout(() => deliverRoomEventsRef.current?.(), 0);
-        return socket;
-      };
-
-      // Expose to preload.html so it can force using our io() instead of vendor socket.io.
-      window.__EDUCOLLAB_OFFICE_IO__ = roomIo;
 
       Object.assign(win, {
         io: roomIo,
