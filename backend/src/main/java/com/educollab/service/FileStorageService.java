@@ -9,6 +9,7 @@ import com.educollab.repo.DiscussionPostRepository;
 import com.educollab.repo.FileAssetRepository;
 import com.educollab.repo.TaskRepository;
 import com.educollab.repo.DocumentRepository;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,6 +69,44 @@ public class FileStorageService {
         } catch (IOException ex) {
             throw new ApiException("文件上传失败: " + ex.getMessage());
         }
+    }
+
+    @Transactional
+    public FileAssetRecord storeBytes(byte[] bytes, String fileName, String mimeType, FileOwnerType ownerType, Long ownerId) {
+        ensureVisible(ownerType, ownerId);
+        if (bytes == null) throw new ApiException("文件内容为空");
+        if (fileName == null || fileName.isBlank()) throw new ApiException("fileName 不能为空");
+        try {
+            Files.createDirectories(root);
+            String generatedName = UUID.randomUUID() + "-" + fileName;
+            Path target = root.resolve(generatedName);
+            Files.copy(new ByteArrayInputStream(bytes), target);
+            FileAssetEntity entity = new FileAssetEntity();
+            entity.setOwnerType(ownerType);
+            entity.setOwnerId(ownerId);
+            entity.setFileName(fileName);
+            entity.setStoragePath(target.toString());
+            entity.setMimeType(mimeType);
+            entity.setSizeBytes((long) bytes.length);
+            fileAssetRepository.save(entity);
+            return toRecord(entity);
+        } catch (IOException ex) {
+            throw new ApiException("文件保存失败: " + ex.getMessage());
+        }
+    }
+
+    @Transactional
+    public void deleteAllForOwner(FileOwnerType ownerType, Long ownerId) {
+        ensureVisible(ownerType, ownerId);
+        List<FileAssetEntity> list = fileAssetRepository.findByOwnerTypeAndOwnerId(ownerType, ownerId);
+        for (FileAssetEntity e : list) {
+            try {
+                if (e.getStoragePath() != null) Files.deleteIfExists(Path.of(e.getStoragePath()));
+            } catch (IOException ex) {
+                // ignore file delete errors; still remove db record
+            }
+        }
+        fileAssetRepository.deleteByOwnerTypeAndOwnerId(ownerType, ownerId);
     }
 
     public List<FileAssetRecord> list(FileOwnerType ownerType, Long ownerId) {

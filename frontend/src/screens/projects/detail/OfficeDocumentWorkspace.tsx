@@ -2,7 +2,8 @@ import React from 'react';
 import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
 import { Cloud, CloudOff, Download, Upload, Users } from 'lucide-react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
 import { PageError, PageLoading } from '@/screens/common/States';
@@ -13,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { COLLAB_BASE } from '@/lib/mappers';
 import type { DocumentRecord, DocumentVersionRecord } from '@/lib/types';
 
@@ -52,9 +54,17 @@ function makeId() {
 
 export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
   const api = useApi();
+  const nav = useNavigate();
+  const qc = useQueryClient();
   const { token, session } = useAuth();
   const [runtimeReady, setRuntimeReady] = React.useState<boolean>(() => !!window.DocsAPI?.DocEditor);
   const [editorError, setEditorError] = React.useState<string | null>(null);
+  const [renameOpen, setRenameOpen] = React.useState(false);
+  const [title, setTitle] = React.useState(doc.title || '');
+
+  React.useEffect(() => {
+    setTitle(doc.title || '');
+  }, [doc.title]);
 
   const versionsQ = useQuery({
     queryKey: ['documentVersions', doc.id],
@@ -64,6 +74,21 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
 
   const restoreM = useMutation({
     mutationFn: (versionId: number) => api.restoreDocumentVersion(versionId),
+  });
+
+  const renameM = useMutation({
+    mutationFn: (nextTitle: string) => api.renameDocument(doc.id, nextTitle),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['document', doc.id] });
+      await qc.invalidateQueries({ queryKey: ['projectDetail', doc.projectId] });
+    },
+  });
+
+  const deleteM = useMutation({
+    mutationFn: () => api.deleteDocument(doc.id),
+    onSuccess: () => {
+      nav(`/app/projects/${doc.projectId}/documents`);
+    },
   });
 
   const uploadAndSaveM = useMutation({
@@ -416,6 +441,48 @@ export function OfficeDocumentWorkspace({ doc }: { doc: DocumentRecord }) {
         </div>
 
         <div className="flex items-center gap-2">
+          <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+            <DialogTrigger render={<Button variant="outline" className="rounded-full" />}>重命名</DialogTrigger>
+            <DialogContent className="max-w-[560px]">
+              <DialogHeader>
+                <DialogTitle>重命名文档</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label>标题</Label>
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="请输入文档标题" />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRenameOpen(false)} disabled={renameM.isPending}>
+                  取消
+                </Button>
+                <Button
+                  onClick={async () => {
+                    const next = title.trim();
+                    if (!next) return;
+                    await renameM.mutateAsync(next);
+                    setRenameOpen(false);
+                  }}
+                  disabled={!title.trim() || renameM.isPending}
+                  className="rounded-full"
+                >
+                  {renameM.isPending ? '保存中…' : '保存'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button
+            variant="outline"
+            className="rounded-full"
+            disabled={deleteM.isPending}
+            onClick={() => {
+              if (!confirm('确定要删除该文档吗？删除后不可恢复。')) return;
+              deleteM.mutate();
+            }}
+          >
+            {deleteM.isPending ? '删除中…' : '删除'}
+          </Button>
+
           {primaryDownloadUrl ? (
             <a href={primaryDownloadUrl} target="_blank" rel="noreferrer">
               <Button variant="outline" className="rounded-full gap-2">

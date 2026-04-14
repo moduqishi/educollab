@@ -8,9 +8,11 @@ import com.educollab.repo.DocumentRepository;
 import com.educollab.repo.DocumentVersionRepository;
 import com.educollab.repo.FileAssetRepository;
 import com.educollab.repo.ProjectRepository;
+import java.io.IOException;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -59,7 +61,6 @@ public class DocumentService {
         if (title == null || title.isBlank()) throw new ApiException("title 不能为空");
         String normalizedExt = (ext == null ? "" : ext.trim().toLowerCase());
         if (!List.of("docx", "xlsx", "pptx").contains(normalizedExt)) throw new ApiException("ext 仅支持 docx/xlsx/pptx");
-        if (file == null || file.isEmpty()) throw new ApiException("请上传文件（docx/xlsx/pptx）");
 
         DocumentEntity entity = new DocumentEntity();
         entity.setProject(project);
@@ -72,11 +73,32 @@ public class DocumentService {
         documentRepository.save(entity);
 
         // Store the primary office file as a DOCUMENT-owned file asset, then point document.fileAssetId to it.
-        var stored = fileStorageService.store(file, FileOwnerType.DOCUMENT, entity.getId());
+        var stored = (file != null && !file.isEmpty())
+            ? fileStorageService.store(file, FileOwnerType.DOCUMENT, entity.getId())
+            : storeOfficeTemplate(entity.getId(), entity.getTitle(), normalizedExt);
         entity.setFileAssetId(stored.id());
         documentRepository.save(entity);
 
         return workspaceService.toDocumentRecord(entity);
+    }
+
+    private FileAssetRecord storeOfficeTemplate(Long documentId, String title, String ext) {
+        String filename = (title == null || title.isBlank() ? "Document" : title.trim()) + "." + ext;
+        String resourcePath = "office-templates/blank." + ext;
+        String mime = switch (ext) {
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            default -> "application/octet-stream";
+        };
+        try {
+            ClassPathResource res = new ClassPathResource(resourcePath);
+            if (!res.exists()) throw new ApiException("内置模板缺失: " + resourcePath);
+            byte[] bytes = res.getInputStream().readAllBytes();
+            return fileStorageService.storeBytes(bytes, filename, mime, FileOwnerType.DOCUMENT, documentId);
+        } catch (IOException e) {
+            throw new ApiException("读取内置模板失败: " + e.getMessage());
+        }
     }
 
     @Transactional
@@ -189,6 +211,18 @@ public class DocumentService {
         documentRepository.save(entity);
 
         return workspaceService.toDocumentRecord(entity);
+    }
+
+    @Transactional
+    public void delete(Long documentId, JwtPrincipal principal) {
+        DocumentEntity entity = documentRepository.findById(documentId).orElseThrow(() -> new ApiException("文档不存在"));
+        workspaceService.requireVisible(entity.getProject().getId(), principal);
+        // delete document-owned files (primary office file, attachments, etc.)
+        fileStorageService.deleteAllForOwner(FileOwnerType.DOCUMENT, entity.getId());
+        // delete versions
+        documentVersionRepository.deleteByDocumentId(entity.getId());
+        // delete document
+        documentRepository.delete(entity);
     }
 
     private String excerpt(String html) {

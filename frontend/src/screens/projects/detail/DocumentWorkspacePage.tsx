@@ -38,14 +38,7 @@ export function DocumentWorkspacePage() {
     queryFn: () => api.documentDetail(id),
   });
 
-  // If this is an OFFICE document, render the office workspace instead of the NOTE realtime editor.
-  if (docQ.data?.kind === 'OFFICE') {
-    return (
-      <div className="space-y-4">
-        <OfficeDocumentWorkspace doc={docQ.data} />
-      </div>
-    );
-  }
+  const isOffice = docQ.data?.kind === 'OFFICE';
 
   React.useEffect(() => {
     if (docQ.data) setTitle([docQ.data.title, docQ.data.projectName, '文档']);
@@ -53,12 +46,12 @@ export function DocumentWorkspacePage() {
 
   const versionsQ = useQuery({
     queryKey: ['documentVersions', id],
-    enabled: !!id,
+    enabled: !!id && !isOffice,
     queryFn: () => api.documentVersions(id),
   });
   const filesQ = useQuery({
     queryKey: ['documentFiles', id],
-    enabled: !!id,
+    enabled: !!id && !isOffice,
     queryFn: () => api.files('DOCUMENT', id),
   });
 
@@ -107,7 +100,7 @@ export function DocumentWorkspacePage() {
   const saveTimerRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
-    if (!docQ.data || !session) return;
+    if (!docQ.data || !session || isOffice) return;
 
     const doc = docQ.data;
     const ydoc = new Y.Doc();
@@ -187,7 +180,7 @@ export function DocumentWorkspacePage() {
       ydocRef.current = null;
       ytextRef.current = null;
     };
-  }, [docQ.data, session]);
+  }, [docQ.data, session, isOffice]);
 
   const replaceContent = (next: string) => {
     const ydoc = ydocRef.current;
@@ -207,7 +200,7 @@ export function DocumentWorkspacePage() {
 
   // autosave debounce
   React.useEffect(() => {
-    if (!docQ.data) return;
+    if (!docQ.data || isOffice) return;
     if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(async () => {
       try {
@@ -221,11 +214,19 @@ export function DocumentWorkspacePage() {
     return () => {
       if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
     };
-  }, [content, docQ.data]);
+  }, [content, docQ.data, isOffice]);
 
   if (docQ.isLoading) return <PageLoading label="正在打开文档…" />;
   if (docQ.isError) return <PageError title="文档加载失败" onRetry={() => docQ.refetch()} />;
   if (!docQ.data) return <PageError title="文档不存在或无权限访问" message="请返回项目文档列表重新选择。" onRetry={() => nav(`/app/projects/${pid}/documents`)} />;
+
+  if (isOffice) {
+    return (
+      <div className="space-y-4">
+        <OfficeDocumentWorkspace doc={docQ.data} />
+      </div>
+    );
+  }
 
   const doc = docQ.data;
   const versions = (versionsQ.data || []) as DocumentVersionRecord[];

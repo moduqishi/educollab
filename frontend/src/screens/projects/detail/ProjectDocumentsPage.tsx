@@ -38,7 +38,7 @@ export function ProjectDocumentsPage() {
   });
 
   const createOfficeM = useMutation({
-    mutationFn: (payload: { projectId: number; title: string; ext: 'docx' | 'xlsx' | 'pptx'; file: File }) => api.createOfficeDocument(payload),
+    mutationFn: (payload: { projectId: number; title: string; ext: 'docx' | 'xlsx' | 'pptx'; file?: File | null }) => api.createOfficeDocument(payload),
     onSuccess: async () => {
       await refresh();
     },
@@ -99,13 +99,15 @@ export function ProjectDocumentsPage() {
                 </div>
                 {kind === 'OFFICE' ? (
                   <div className="space-y-2 md:col-span-2">
-                    <Label>上传文件（.{ext}）</Label>
+                    <Label>可选：上传已有文件（.{ext}）</Label>
                     <Input
                       type="file"
                       accept={ext === 'docx' ? '.docx' : ext === 'xlsx' ? '.xlsx' : '.pptx'}
                       onChange={(e) => setFile(e.target.files?.[0] || null)}
                     />
-                    <div className="text-[11px] text-muted-foreground">提示：Office 编辑器运行时需要额外静态资源（web-apps）。如果打开后提示未检测到运行时，请把 office-website 的 web-apps 放到前端 public。</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      不上传则自动创建“空白模板”文档。提示：Office 编辑器依赖 vendored 的 web-apps 运行时（本项目已集成到 <span className="font-mono">/v9.3.0.24-1</span>）。
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -116,14 +118,13 @@ export function ProjectDocumentsPage() {
                 <Button
                   disabled={
                     !title.trim() ||
-                    (kind === 'NOTE' ? createM.isPending : createOfficeM.isPending) ||
-                    (kind === 'OFFICE' && !file)
+                    (kind === 'NOTE' ? createM.isPending : createOfficeM.isPending)
                   }
                   onClick={async () => {
                     const created =
                       kind === 'NOTE'
                         ? await createM.mutateAsync({ projectId: detail.project.id, title: title.trim(), currentContent: '' })
-                        : await createOfficeM.mutateAsync({ projectId: detail.project.id, title: title.trim(), ext, file: file! });
+                        : await createOfficeM.mutateAsync({ projectId: detail.project.id, title: title.trim(), ext, file });
                     setOpen(false);
                     nav(`/app/projects/${detail.project.id}/documents/${created.id}`);
                   }}

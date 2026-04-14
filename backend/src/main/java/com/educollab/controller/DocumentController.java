@@ -37,6 +37,7 @@ public class DocumentController {
     ) {
         return documentService.saveOfficeFile(id, file, createVersion, versionLabel, SecurityUtils.principal());
     }
+    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { documentService.delete(id, SecurityUtils.principal()); }
     @GetMapping("/{id}/versions") public List<DocumentVersionRecord> versions(@PathVariable Long id) { return documentService.versions(id, SecurityUtils.principal()); }
     @PostMapping("/{id}/versions") public DocumentVersionRecord saveVersion(@PathVariable Long id, @RequestBody DocumentAutosaveRequest request) { return documentService.saveVersion(id, request.versionLabel(), request.currentContent(), SecurityUtils.principal()); }
     @GetMapping("/versions/{versionId}/restore") public DocumentVersionRecord restore(@PathVariable Long versionId) { return documentService.restore(versionId, SecurityUtils.principal()); }

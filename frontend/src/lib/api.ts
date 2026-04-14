@@ -98,15 +98,16 @@ export function createApiClient(options: ApiClientOptions) {
     documentDetail: (id: number) => request<DocumentRecord>(`/api/documents/${id}`),
     createDocument: (payload: { projectId: number; title: string; currentContent: string }) =>
       request<DocumentRecord>('/api/documents', { method: 'POST', body: JSON.stringify(payload) }),
-    createOfficeDocument: async (payload: { projectId: number; title: string; ext: 'docx' | 'xlsx' | 'pptx'; file: File }) => {
+    createOfficeDocument: async (payload: { projectId: number; title: string; ext: 'docx' | 'xlsx' | 'pptx'; file?: File | null }) => {
       const form = new FormData();
       form.append('projectId', String(payload.projectId));
       form.append('title', payload.title);
       form.append('ext', payload.ext);
-      form.append('file', payload.file);
+      if (payload.file) form.append('file', payload.file);
       return request<DocumentRecord>('/api/documents/office', { method: 'POST', body: form });
     },
     renameDocument: (id: number, title: string) => request<DocumentRecord>(`/api/documents/${id}`, { method: 'PUT', body: JSON.stringify({ title }) }),
+    deleteDocument: (id: number) => request<void>(`/api/documents/${id}`, { method: 'DELETE' }),
     autosaveDocument: (id: number, payload: { currentContent: string; excerpt: string; saveVersion: boolean; versionLabel?: string }) =>
       request<DocumentRecord>(`/api/documents/${id}/autosave`, { method: 'POST', body: JSON.stringify(payload) }),
     documentVersions: (id: number) => request<DocumentVersionRecord[]>(`/api/documents/${id}/versions`),
