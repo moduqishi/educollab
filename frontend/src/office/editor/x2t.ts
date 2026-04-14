@@ -89,11 +89,17 @@ export class X2tConverter {
    * Handle worker errors
    */
   private handleWorkerError = (error: ErrorEvent) => {
-    console.error("[X2tConverter] Worker error:", error);
+    console.error("[X2tConverter] Worker error:", {
+      message: (error as any)?.message,
+      filename: (error as any)?.filename,
+      lineno: (error as any)?.lineno,
+      colno: (error as any)?.colno,
+      error: (error as any)?.error,
+    });
 
     // Reject all pending messages
     for (const [id, pending] of this.pendingMessages) {
-      pending.reject(new Error(`Worker error: ${error.message}`));
+      pending.reject(new Error(`Worker error: ${(error as any)?.message || "unknown"}`));
       this.pendingMessages.delete(id);
     }
   };
