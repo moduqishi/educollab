@@ -76,7 +76,7 @@ flowchart LR
   U[User Browser] --> FE[Frontend<br/>React + Vite]
 
   FE -->|REST JSON<br/>/api/*| BE[Backend<br/>Spring Boot]
-  FE -->|WebSocket<br/>Yjs (Hocuspocus)| CS[Collab Server<br/>Hocuspocus]
+  FE -->|WebSocket<br/>Yjs via Hocuspocus| CS[Collab Server<br/>Hocuspocus]
 
   BE --> DB[(MySQL 8)]
   BE --> FS[(File Storage<br/>/app/data/uploads)]
@@ -100,10 +100,10 @@ flowchart LR
 ```mermaid
 flowchart TD
   A[登录 / 注册<br/>/api/auth/*] --> B[Dashboard<br/>/api/projects/dashboard]
-  B --> C[项目详情<br/>/api/projects/{id}]
+  B --> C[项目详情<br/>/api/projects/:id]
   C --> D[任务管理<br/>/api/tasks/*]
   C --> E[讨论区<br/>/api/discussions/*]
-  C --> F[文档中心<br/>/api/documents/* + ws://collab/{collabKey}]
+  C --> F[文档中心<br/>/api/documents/* + ws://collab/:collabKey]
   C --> G[文件资产<br/>/api/files/*]
   C --> H[通知中心<br/>/api/notifications/*]
   C --> I{代码项目?}
@@ -150,12 +150,12 @@ sequenceDiagram
   participant BE as Backend
   participant DB as MySQL
 
-  FE1->>CS: connect ws://.../{collabKey}
-  FE2->>CS: connect ws://.../{collabKey}
+  FE1->>CS: connect ws://.../:collabKey
+  FE2->>CS: connect ws://.../:collabKey
   CS-->>FE1: Yjs updates (realtime)
   CS-->>FE2: Yjs updates (realtime)
 
-  FE1->>BE: POST /api/documents/{id}/autosave (content,excerpt,saveVersion?)
+  FE1->>BE: POST /api/documents/:id/autosave (content,excerpt,saveVersion?)
   BE->>DB: UPDATE documents.current_content
   opt saveVersion=true
     BE->>DB: INSERT document_versions (snapshot_content,label,...)
@@ -166,7 +166,7 @@ sequenceDiagram
 事实来源：
 - 协同服务 onLoad/onStore（LevelDB）：`collab-server/src/index.js`
 - 文档 REST API：`backend/src/main/java/com/educollab/controller/DocumentController.java`
-- 前端文档 API：`frontend/src/lib/api.ts`、`frontend/src/lib/mappers.ts`（`collabUrl = COLLAB_BASE/{collabKey}`）
+- 前端文档 API：`frontend/src/lib/api.ts`、`frontend/src/lib/mappers.ts`（`collabUrl = COLLAB_BASE/:collabKey`）
 
 ### C）Git Clone / Pull / Push（Smart HTTP + Basic Token）
 
@@ -178,12 +178,12 @@ sequenceDiagram
   participant BE as Backend
   participant G as GitServlet(JGit)
 
-  FE->>BE: GET /api/git/projects/{projectId}/clone-info
+  FE->>BE: GET /api/git/projects/:projectId/clone-info
   BE-->>FE: { httpUrl, repoSlug, ... }
   FE->>BE: POST /api/git/tokens (create access token)
   BE-->>FE: { tokenPlain, tokenPrefix, ... }
 
-  CLI->>BE: git clone http://host:8080/git/{slug}.git (Basic email:token)
+  CLI->>BE: git clone http://host:8080/git/:slug.git (Basic email:token)
   BE->>BE: GitBasicAuthFilter authenticateByBasic()
   BE->>G: UploadPackFactory permission check (visible project)
   G-->>CLI: pack data
@@ -342,7 +342,7 @@ mvn -Dmaven.repo.local=/tmp/educollab-m2 test
 - [ ] 能用默认账号登录
 - [ ] 能进入 Dashboard 并打开项目详情
 - [ ] 能创建/更新一个任务
-- [ ] 能打开文档并产生 autosave（查看 Network 调用 `/api/documents/{id}/autosave`）
+- [ ] 能打开文档并产生 autosave（查看 Network 调用 `/api/documents/:id/autosave`）
 - [ ] 代码项目能看到 clone-info，并能用 token 进行 git clone（只需验证一次）
 
 ---
