@@ -1,57 +1,76 @@
-# EduCollab（交接向 / Mermaid 图完备版）
+# EduCollab
 
-EduCollab 是一个面向课程团队协作的“一体化工作台”项目：**团队/项目/任务/讨论/协同文档/文件/通知/Git/AI** 全流程闭环。
+面向课程/团队协作的一体化平台：**团队 / 项目 / 任务 / 讨论 / 协同文档 / 文件 / 通知 / Git / AI** 全流程闭环。
 
-本 README 面向 **团队接手/交接**：强调模块边界、关键流程、接口锚点、环境变量与排障路径；并包含可在 GitHub/GitLab 直接渲染的 **Mermaid**：架构图 / 流程图 / 时序图 / ER 图。
-
-> 历史说明：仓库已移除会议模块（无会议页面/表/AI/导航残留）。
+这份 README 以“成熟项目交接文档”的标准来写：你可以用它快速跑起来，也可以据此定位模块边界、关键链路和排障入口。图形全部使用 GitHub/GitLab 可直接渲染的 **Mermaid**。
 
 ---
 
-## Tech Stack（以仓库为准）
+## 目录
 
-| 模块 | 技术栈 | 事实来源 |
-|---|---|---|
-| Frontend | React 19 + Vite 6 + React Router + React Query + Tailwind CSS + shadcn/base-ui | `frontend/package.json` |
-| Backend | Spring Boot 3 + Spring Security（JWT）+ JPA + MySQL + JGit | `backend/pom.xml` / `backend/src/main/resources/application.yml` / `backend/src/main/java/com/educollab/common/config/GitHttpConfig.java` |
-| Collab | Hocuspocus + Yjs + y-leveldb（LevelDB 持久化） | `collab-server/src/index.js` |
+- [能力概览](#能力概览)
+- [技术栈](#技术栈)
+- [快速开始](#快速开始)
+- [架构](#架构)
+- [关键流程](#关键流程)
+- [数据模型](#数据模型)
+- [模块边界与接口](#模块边界与接口)
+- [配置](#配置)
+- [排障](#排障)
+- [测试](#测试)
+- [仓库结构与源码导航](#仓库结构与源码导航)
 
 ---
 
-## 快速开始（Docker / 本机）
+## 能力概览
 
-### 端口与地址速查（务必先看）
+- **身份与权限**：JWT 鉴权，接口分层（学生/教师）、Git Smart HTTP 单独走 Basic Token
+- **项目空间**：项目/成员/任务（状态流转）/讨论（回复 + 任务关联）/通知
+- **协同文档**：Yjs 实时协同 + 后端元数据与版本快照（版本恢复）
+- **文件资产**：上传/下载，绑定到项目、任务、文档、讨论（多态归属）
+- **Git**：JGit 托管裸仓、分支/提交树/MR/Release 基础流程 + Git Smart HTTP
+- **AI 助手**：OpenAI-compatible 接口，未配置 Key 时明确报错
+
+> 备注：仓库已移除会议模块（无会议页面/表/AI/导航残留）。
+
+---
+
+## 技术栈
+
+| 模块 | 技术栈 |
+|---|---|
+| Frontend | React 19 + Vite 6 + React Router + React Query + Tailwind CSS + shadcn/base-ui |
+| Backend | Spring Boot 3 + Spring Security（JWT）+ JPA + MySQL + JGit |
+| Collab | Hocuspocus + Yjs + y-leveldb（LevelDB 持久化） |
+
+---
+
+## 快速开始
+
+### 端口与地址
 
 | 运行方式 | Frontend | Backend | Collab | MySQL |
 |---|---:|---:|---:|---:|
 | 本机开发（dev） | `http://localhost:3000` | `http://localhost:8080` | `ws://localhost:1234` | `localhost:3306` |
 | Docker 演示（compose） | `http://localhost:5173`（容器内 Nginx 80） | `http://localhost:8080` | `ws://localhost:1234` | `localhost:3306` |
 
-事实来源：`scripts/dev-local-up.sh`、`docker-compose.yml`、`frontend/Dockerfile`
-
 ### 默认演示账号
 
 - 学生：`alex@educollab.local` / `Password123!`
 - 教师：`teacher@educollab.local` / `Password123!`
 
-事实来源：`backend/src/main/java/com/educollab/service/DataInitializer.java`
-
-### Docker Compose 一键演示（推荐给答辩/演示）
+### Docker Compose（推荐：演示/答辩/快速体验）
 
 ```bash
-cd /Users/cake/toys/educollab
 cp .env.example .env
 docker compose up --build
 ```
 
-事实来源：`docker-compose.yml`、`.env.example`
-
-### 纯本机一键启动（推荐给开发调试）
+### 本机一键启动（推荐：开发调试）
 
 依赖：MySQL、Node.js、npm、Java 21、Maven
 
 ```bash
-cd /Users/cake/toys/educollab
 chmod +x scripts/*.sh
 ./scripts/dev-local-up.sh
 ```
@@ -59,17 +78,16 @@ chmod +x scripts/*.sh
 停止：
 
 ```bash
-cd /Users/cake/toys/educollab
 ./scripts/dev-local-down.sh
 ```
 
-日志目录：`.local-run/`（脚本会写 `backend.log` / `frontend.log` / `collab-server.log`）
-
-事实来源：`scripts/dev-local-up.sh`、`scripts/dev-local-down.sh`、`scripts/init-local-db.sh`
+日志：`.local-run/`（`backend.log` / `frontend.log` / `collab-server.log`）
 
 ---
 
-## 系统架构图（Mermaid / 架构图）
+## 架构
+
+### 组件与边界（Mermaid）
 
 ```mermaid
 flowchart LR
@@ -86,16 +104,11 @@ flowchart LR
   CS --> CL[(LevelDB<br/>collab state)]
 ```
 
-关键锚点：
-- Docker 部署与端口：`docker-compose.yml`
-- 后端配置（DB/JWT/文件/Git/AI）：`backend/src/main/resources/application.yml`
-- 协同服务持久化（LevelDB）：`collab-server/src/index.js`
-
 ---
 
-## 关键业务流程（Mermaid / 流程图）
+## 关键流程
 
-以“项目空间日常使用闭环”为主线（交接最常用路径）：
+### 项目空间日常闭环（Mermaid）
 
 ```mermaid
 flowchart TD
@@ -112,13 +125,11 @@ flowchart TD
   C --> L[AI 助手<br/>/api/ai/*]
 ```
 
-API 入口锚点：`backend/src/main/java/com/educollab/controller/*`
-
 ---
 
-## 关键时序图（Mermaid / 时序图）
+## 关键链路（时序图）
 
-### A）登录与鉴权（JWT）
+### 登录与鉴权（JWT）
 
 ```mermaid
 sequenceDiagram
@@ -133,13 +144,7 @@ sequenceDiagram
   BE-->>FE: 200 OK
 ```
 
-事实来源：
-- JWT 解析与 Principal 注入：`backend/src/main/java/com/educollab/common/security/JwtAuthenticationFilter.java`
-- JWT 生成与解析：`backend/src/main/java/com/educollab/common/security/JwtService.java`
-- SecurityFilterChain：`backend/src/main/java/com/educollab/common/config/SecurityConfig.java`
-- 前端请求封装：`frontend/src/lib/api.ts`
-
-### B）协同文档：实时编辑 + 自动保存 + 版本快照
+### 协同文档：实时编辑 + 自动保存 + 版本快照
 
 ```mermaid
 sequenceDiagram
@@ -163,12 +168,7 @@ sequenceDiagram
   BE-->>FE1: 200 DocumentRecord
 ```
 
-事实来源：
-- 协同服务 onLoad/onStore（LevelDB）：`collab-server/src/index.js`
-- 文档 REST API：`backend/src/main/java/com/educollab/controller/DocumentController.java`
-- 前端文档 API：`frontend/src/lib/api.ts`、`frontend/src/lib/mappers.ts`（`collabUrl = COLLAB_BASE/:collabKey`）
-
-### C）Git Clone / Pull / Push（Smart HTTP + Basic Token）
+### Git Clone / Pull / Push（Smart HTTP + Basic Token）
 
 ```mermaid
 sequenceDiagram
@@ -193,16 +193,11 @@ sequenceDiagram
   G-->>CLI: push result
 ```
 
-事实来源：
-- `/git/*` Servlet 与 Upload/Receive 权限：`backend/src/main/java/com/educollab/common/config/GitHttpConfig.java`
-- Basic Token 鉴权过滤器：`backend/src/main/java/com/educollab/common/security/GitBasicAuthFilter.java`
-- Security 放行 `/git/**`：`backend/src/main/java/com/educollab/common/config/SecurityConfig.java`
-
 ---
 
-## 数据模型（Mermaid ER 图，核心表聚焦）
+## 数据模型
 
-> 完整表结构见：`backend/src/main/resources/schema.sql`（此处只画交接最常用的核心关系）
+完整表结构见 `backend/src/main/resources/schema.sql`；这里仅画核心关系（交接最常用子集）。
 
 ```mermaid
 erDiagram
@@ -230,21 +225,20 @@ erDiagram
   USERS ||--o{ NOTIFICATIONS : "user_id"
 ```
 
-说明：
-- `file_assets` 通过 `owner_type + owner_id` 绑定不同资源（PROJECT/TASK/DOCUMENT/DISCUSSION_POST），属于“多态关联”，此处不强行画 ER 关系线（见 `schema.sql` 字段定义）。
-- 通知 `notifications` 与用户绑定（见 schema.sql：`user_id`）。
+补充：
+- `file_assets` 通过 `owner_type + owner_id` 绑定不同资源（PROJECT/TASK/DOCUMENT/DISCUSSION_POST），属于多态关联，ER 图不强行画线。
 
 ---
 
-## 模块边界与接口锚点（交接重点）
+## 模块边界与接口
 
-### 边界表（职责与数据所有权）
+### 职责边界（数据所有权）
 
-| 模块 | 负责什么 | 不负责什么 | 关键锚点 |
+| 模块 | 负责什么 | 不负责什么 |
 |---|---|---|---|
-| Frontend | 路由/视图/状态、调用后端 API、连接协同服务、展示 Git/AI 结果 | 不直接访问 DB/文件系统/裸仓 | `frontend/src/lib/api.ts`、`frontend/src/lib/mappers.ts` |
-| Backend | 鉴权、业务聚合、持久化、文件上传下载、JGit 托管、AI 调用封装 | 不做 Yjs 同步（交给 collab-server） | `backend/src/main/java/com/educollab/controller/*`、`backend/src/main/resources/application.yml` |
-| Collab Server | Yjs 文档实时同步与持久化（LevelDB） | 不做业务鉴权/权限（如需可扩展） | `collab-server/src/index.js` |
+| Frontend | 路由/视图/状态、调用后端 API、连接协同服务、展示 Git/AI 结果 | 不直接访问 DB/文件系统/裸仓 |
+| Backend | 鉴权、业务聚合、持久化、文件上传下载、JGit 托管、AI 调用封装 | 不做 Yjs 同步（交给 collab-server） |
+| Collab Server | Yjs 文档实时同步与持久化（LevelDB） | 不做业务鉴权/权限（需要的话作为扩展点实现） |
 
 ### API 概览（按 Controller 入口导航）
 
@@ -265,35 +259,34 @@ erDiagram
 
 ---
 
-## 配置与环境变量（含坑点）
+## 配置
 
 以 `.env.example` 为准（Docker / 本机都建议先复制一份 `.env`）：
 
 ```bash
-cd /Users/cake/toys/educollab
 cp .env.example .env
 ```
 
-### 变量速查
+### 环境变量速查
 
-| 变量 | 用途 | 事实来源 |
-|---|---|---|
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | 后端数据源 | `.env.example` / `backend/src/main/resources/application.yml` |
-| `JWT_SECRET` | JWT 签名密钥（建议 ≥ 32 bytes） | `.env.example` / `application.yml` |
-| `AI_PROVIDER` / `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | AI Provider（OpenAI-compatible） | `.env.example` / `backend/src/main/java/com/educollab/service/AiService.java` |
-| `FILE_STORAGE_ROOT` / `GIT_REPO_ROOT` | 文件上传与裸仓根目录（Docker 默认 `/app/data/*`） | `.env.example` / `docker-compose.yml` / `application.yml` |
-| `COLLAB_PORT` / `COLLAB_DATA_DIR` | 协同服务端口与 LevelDB 目录 | `.env.example` / `collab-server/src/index.js` |
-| `VITE_API_BASE_URL` / `VITE_COLLAB_BASE_URL` | 前端连接后端与协同服务的基址 | `.env.example` / `frontend/src/lib/mappers.ts` |
+| 变量 | 用途 |
+|---|---|
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | 后端数据源 |
+| `JWT_SECRET` | JWT 签名密钥（建议 ≥ 32 bytes） |
+| `AI_PROVIDER` / `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | AI Provider（OpenAI-compatible） |
+| `FILE_STORAGE_ROOT` / `GIT_REPO_ROOT` | 文件上传与裸仓根目录（Docker 默认 `/app/data/*`） |
+| `COLLAB_PORT` / `COLLAB_DATA_DIR` | 协同服务端口与 LevelDB 目录 |
+| `VITE_API_BASE_URL` / `VITE_COLLAB_BASE_URL` | 前端连接后端与协同服务的基址 |
 
 ### 坑点：`VITE_API_BASE_URL` 可以写到 `/api`，前端会自动去重
 
 `.env.example` 默认是 `VITE_API_BASE_URL=http://localhost:8080/api`。前端会把末尾 `/api` 规范化，避免出现 `/api/api/...`。
 
-事实来源：`frontend/src/lib/mappers.ts`（`normalizeApiBase()`）
-
 ---
 
-## 排障 Runbook（常见问题快速定位）
+## 排障
+
+### 常见问题
 
 1) **端口占用**
 - 本机 dev：3000/8080/1234/3306
@@ -304,40 +297,40 @@ cp .env.example .env
 
 3) **AI 调用失败 / 没配置 Key**
 - 后端会明确报错：`AI 模型未配置，请设置 API Key`
-- 入口：`AiService.ask()`（`backend/src/main/java/com/educollab/service/AiService.java`）
+- 入口：`backend/src/main/java/com/educollab/service/AiService.java`
 
 4) **Git clone/push 401/403**
 - `/git/*` 走 Basic Token（不是 JWT）
 - 权限规则：项目可见性（读）+ 学生项目成员（写），教师只读
-- 锚点：`GitHttpConfig`、`GitBasicAuthFilter`
+- 入口：`backend/src/main/java/com/educollab/common/config/GitHttpConfig.java`
 
 5) **协同文档不同步/丢数据**
 - 检查 `VITE_COLLAB_BASE_URL` 是否指向正确 ws 地址
 - Collab 持久化目录：`COLLAB_DATA_DIR`（默认 `collab-server/data/` 或 Docker 的 `/app/data/collab`）
-- 锚点：`collab-server/src/index.js`
+- 入口：`collab-server/src/index.js`
 
-> 备注：后端存在 `WebSocketConfig`（`/ws/notifications` STOMP broker），当前仓库未见业务侧消息推送实现；请视为预留扩展点，不作为已上线能力承诺。
+> 备注：后端存在 `WebSocketConfig`（`/ws/notifications` STOMP broker），当前仓库未见业务侧消息推送实现；作为预留扩展点对待。
 
 ---
 
-## 测试与质量门禁（轻量）
+## 测试
 
-### 前端
+### Frontend
 
 ```bash
-cd /Users/cake/toys/educollab/frontend
+cd frontend
 npm run build
 npm run lint
 ```
 
-### 后端
+### Backend
 
 ```bash
-cd /Users/cake/toys/educollab/backend
+cd backend
 mvn -Dmaven.repo.local=/tmp/educollab-m2 test
 ```
 
-### 最小冒烟 Checklist（交接必跑）
+### 最小冒烟 Checklist
 
 - [ ] 能用默认账号登录
 - [ ] 能进入 Dashboard 并打开项目详情
@@ -347,10 +340,9 @@ mvn -Dmaven.repo.local=/tmp/educollab-m2 test
 
 ---
 
-## 仓库目录说明
+## 仓库结构与源码导航
 
 ```text
-/Users/cake/toys/educollab
 ├── frontend/        # React 前端（Vite dev: 3000 / Docker: Nginx 80->5173）
 ├── backend/         # Spring Boot 后端（8080）
 ├── collab-server/   # Hocuspocus 协同服务（1234）
@@ -358,3 +350,14 @@ mvn -Dmaven.repo.local=/tmp/educollab-m2 test
 ├── docker-compose.yml
 └── .env.example
 ```
+
+### 关键入口（建议从这里读代码）
+
+- 前端 API 客户端：`frontend/src/lib/api.ts`
+- 前端环境与 URL 规范化：`frontend/src/lib/mappers.ts`
+- 后端配置：`backend/src/main/resources/application.yml`
+- 安全与鉴权：`backend/src/main/java/com/educollab/common/config/SecurityConfig.java`
+- JWT：`backend/src/main/java/com/educollab/common/security/JwtService.java`
+- 文档 API：`backend/src/main/java/com/educollab/controller/DocumentController.java`
+- Git Smart HTTP：`backend/src/main/java/com/educollab/common/config/GitHttpConfig.java`
+- 协同服务：`collab-server/src/index.js`
