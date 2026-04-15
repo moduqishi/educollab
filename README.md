@@ -77,6 +77,19 @@ docker compose up --build
 docker build -f Dockerfile.monolith -t educollab:monolith .
 ```
 
+构建 **AMD64**（用于 x86_64 / Intel / 大多数服务器）：
+
+```bash
+docker buildx build --platform linux/amd64 -f Dockerfile.monolith -t educollab:monolith-amd64 --load .
+```
+
+构建 **多架构镜像**（AMD64 + ARM64；用于同时兼容服务器和 Apple Silicon）：
+
+```bash
+# 注意：多架构一般需要 --push 到镜像仓库（会生成一个 manifest list）
+docker buildx build --platform linux/amd64,linux/arm64 -f Dockerfile.monolith -t <your-registry>/educollab:monolith --push .
+```
+
 启动（带持久化卷）：
 
 ```bash

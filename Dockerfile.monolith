@@ -11,7 +11,10 @@
 ############################
 # Backend build
 ############################
-FROM maven:3.9.9-eclipse-temurin-21 AS backend-build
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+
+FROM --platform=$BUILDPLATFORM maven:3.9.9-eclipse-temurin-21 AS backend-build
 WORKDIR /src
 COPY backend/pom.xml backend/pom.xml
 RUN --mount=type=cache,target=/root/.m2 \
@@ -23,7 +26,7 @@ RUN --mount=type=cache,target=/root/.m2 \
 ############################
 # Frontend build
 ############################
-FROM node:20-alpine AS frontend-build
+FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-build
 WORKDIR /src
 ARG VITE_API_BASE_URL=
 ARG VITE_COLLAB_BASE_URL=
@@ -37,7 +40,7 @@ RUN cd frontend && npm run build
 ############################
 # Collab build (debian/glibc)
 ############################
-FROM node:20-bookworm-slim AS collab-build
+FROM --platform=$TARGETPLATFORM node:20-bookworm-slim AS collab-build
 WORKDIR /src
 COPY collab-server/package*.json collab-server/
 RUN cd collab-server && npm ci --omit=dev
@@ -46,12 +49,12 @@ COPY collab-server/src collab-server/src
 ############################
 # Java runtime (copy only)
 ############################
-FROM eclipse-temurin:21-jre AS java-runtime
+FROM --platform=$TARGETPLATFORM eclipse-temurin:21-jre AS java-runtime
 
 ############################
 # Final image
 ############################
-FROM node:20-bookworm-slim
+FROM --platform=$TARGETPLATFORM node:20-bookworm-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
