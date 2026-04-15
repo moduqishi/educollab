@@ -9,16 +9,20 @@ function normalizeApiBase(raw: string) {
 function defaultApiBase() {
   if (typeof window === 'undefined') return 'http://localhost:8080';
   const proto = window.location.protocol || 'http:';
-  const host = window.location.hostname || 'localhost';
-  return `${proto}//${host}:8080`;
+  // Use the same host+port as the current page by default.
+  // Dev/docker-compose can override via VITE_API_BASE_URL.
+  const host = window.location.host || 'localhost';
+  return `${proto}//${host}`;
 }
 
 function defaultCollabBase() {
   if (typeof window === 'undefined') return 'ws://localhost:1234';
   const isHttps = window.location.protocol === 'https:';
   const proto = isHttps ? 'wss:' : 'ws:';
-  const host = window.location.hostname || 'localhost';
-  return `${proto}//${host}:1234`;
+  // Default to a same-origin websocket endpoint so a single reverse-proxy
+  // (e.g. Nginx) can serve frontend + proxy collab.
+  const host = window.location.host || 'localhost';
+  return `${proto}//${host}/collab`;
 }
 
 export const API_BASE = normalizeApiBase((import.meta as any).env?.VITE_API_BASE_URL || defaultApiBase());

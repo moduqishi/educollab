@@ -8,3 +8,4 @@ collab-server/data
 backend/data
 *.log
 .DS_Store
+.env

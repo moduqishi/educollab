@@ -66,6 +66,32 @@ cp .env.example .env
 docker compose up --build
 ```
 
+### 单容器镜像（Monolith：一个镜像/一个容器，便于部署）
+
+> 说明：该模式会在 **同一个容器** 内启动 Nginx（前端静态 + 反代）、Backend、Collab、MariaDB。
+> 默认只暴露一个端口：对外 `:8080`（容器内 `:80`）。
+
+构建镜像：
+
+```bash
+docker build -f Dockerfile.monolith -t educollab:monolith .
+```
+
+启动（带持久化卷）：
+
+```bash
+docker run -d --name educollab-monolith \
+  -p 8080:80 \
+  -v educollab_monolith_data:/app/data \
+  -v educollab_monolith_db:/var/lib/mysql \
+  educollab:monolith
+```
+
+访问：
+
+- 前端：`http://localhost:8080`
+- 后端健康检查：`http://localhost:8080/actuator/health`
+
 ### 本机一键启动（推荐：开发调试）
 
 依赖：MySQL、Node.js、npm、Java 21、Maven
