@@ -91,17 +91,17 @@ chmod +x scripts/*.sh
 
 ```mermaid
 flowchart LR
-  U[User Browser] --> FE[Frontend<br/>React + Vite]
+  U[用户浏览器] --> FE[前端<br/>React + Vite]
 
-  FE -->|REST JSON<br/>/api/*| BE[Backend<br/>Spring Boot]
-  FE -->|WebSocket<br/>Yjs via Hocuspocus| CS[Collab Server<br/>Hocuspocus]
+  FE -->|REST JSON<br/>/api/*| BE[后端<br/>Spring Boot]
+  FE -->|WebSocket<br/>Yjs via Hocuspocus| CS[协同服务<br/>Hocuspocus]
 
   BE --> DB[(MySQL 8)]
-  BE --> FS[(File Storage<br/>/app/data/uploads)]
-  BE --> GR[(Git Bare Repos<br/>/app/data/repos)]
+  BE --> FS[(文件存储<br/>/app/data/uploads)]
+  BE --> GR[(Git 裸仓<br/>/app/data/repos)]
   BE -->|HTTP| AI[(OpenAI-compatible<br/>/chat/completions)]
 
-  CS --> CL[(LevelDB<br/>collab state)]
+  CS --> CL[(LevelDB<br/>协同状态)]
 ```
 
 ---
@@ -112,7 +112,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  A[登录 / 注册<br/>/api/auth/*] --> B[Dashboard<br/>/api/projects/dashboard]
+  A[登录 / 注册<br/>/api/auth/*] --> B[仪表盘<br/>/api/projects/dashboard]
   B --> C[项目详情<br/>/api/projects/:id]
   C --> D[任务管理<br/>/api/tasks/*]
   C --> E[讨论区<br/>/api/discussions/*]
@@ -134,13 +134,13 @@ flowchart TD
 ```mermaid
 sequenceDiagram
   autonumber
-  participant FE as Frontend
-  participant BE as Backend
+  participant FE as 前端
+  participant BE as 后端
 
-  FE->>BE: POST /api/auth/login (email,password)
-  BE-->>FE: 200 { token, user, ... }
-  FE->>FE: store token (memory/localStorage)
-  FE->>BE: GET /api/projects (Authorization: Bearer <token>)
+  FE->>BE: POST /api/auth/login（邮箱、密码）
+  BE-->>FE: 200（返回 token / user）
+  FE->>FE: 保存 token（memory/localStorage）
+  FE->>BE: GET /api/projects（Authorization: Bearer token）
   BE-->>FE: 200 OK
 ```
 
@@ -149,23 +149,23 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   autonumber
-  participant FE1 as Frontend(A)
-  participant FE2 as Frontend(B)
-  participant CS as Collab Server
-  participant BE as Backend
+  participant FE1 as 前端（用户 A）
+  participant FE2 as 前端（用户 B）
+  participant CS as 协同服务
+  participant BE as 后端
   participant DB as MySQL
 
-  FE1->>CS: connect ws://.../:collabKey
-  FE2->>CS: connect ws://.../:collabKey
-  CS-->>FE1: Yjs updates (realtime)
-  CS-->>FE2: Yjs updates (realtime)
+  FE1->>CS: 连接 ws://.../:collabKey
+  FE2->>CS: 连接 ws://.../:collabKey
+  CS-->>FE1: Yjs 更新（实时同步）
+  CS-->>FE2: Yjs 更新（实时同步）
 
-  FE1->>BE: POST /api/documents/:id/autosave (content,excerpt,saveVersion?)
+  FE1->>BE: POST /api/documents/:id/autosave（content、excerpt、saveVersion?）
   BE->>DB: UPDATE documents.current_content
   opt saveVersion=true
     BE->>DB: INSERT document_versions (snapshot_content,label,...)
   end
-  BE-->>FE1: 200 DocumentRecord
+  BE-->>FE1: 200（返回 DocumentRecord）
 ```
 
 ### Git Clone / Pull / Push（Smart HTTP + Basic Token）
@@ -173,24 +173,24 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   autonumber
-  participant FE as Frontend
-  participant CLI as Git Client
-  participant BE as Backend
+  participant FE as 前端
+  participant CLI as Git 客户端
+  participant BE as 后端
   participant G as GitServlet(JGit)
 
   FE->>BE: GET /api/git/projects/:projectId/clone-info
-  BE-->>FE: { httpUrl, repoSlug, ... }
-  FE->>BE: POST /api/git/tokens (create access token)
-  BE-->>FE: { tokenPlain, tokenPrefix, ... }
+  BE-->>FE: 返回（httpUrl / repoSlug / ...）
+  FE->>BE: POST /api/git/tokens（创建访问令牌）
+  BE-->>FE: 返回（tokenPlain / tokenPrefix / ...）
 
-  CLI->>BE: git clone http://host:8080/git/:slug.git (Basic email:token)
-  BE->>BE: GitBasicAuthFilter authenticateByBasic()
-  BE->>G: UploadPackFactory permission check (visible project)
-  G-->>CLI: pack data
+  CLI->>BE: git clone http://host:8080/git/:slug.git（Basic email:token）
+  BE->>BE: GitBasicAuthFilter.authenticateByBasic()
+  BE->>G: UploadPack 权限校验（项目可见）
+  G-->>CLI: pack 数据
 
-  CLI->>BE: git push ... (Basic email:token)
-  BE->>G: ReceivePackFactory permission check (student project member only)
-  G-->>CLI: push result
+  CLI->>BE: git push ...（Basic email:token）
+  BE->>G: ReceivePack 权限校验（仅学生项目成员可写）
+  G-->>CLI: push 结果
 ```
 
 ---
@@ -201,28 +201,28 @@ sequenceDiagram
 
 ```mermaid
 erDiagram
-  USERS ||--o{ COURSES : "teacher_id"
-  COURSES ||--o{ TEAMS : "course_id"
-  TEAMS ||--o{ PROJECTS : "team_id"
+  USERS ||--o{ COURSES : "教师（teacher_id）"
+  COURSES ||--o{ TEAMS : "课程-团队（course_id）"
+  TEAMS ||--o{ PROJECTS : "团队-项目（team_id）"
 
-  USERS ||--o{ TEAM_MEMBERS : "user_id"
-  TEAMS ||--o{ TEAM_MEMBERS : "team_id"
+  USERS ||--o{ TEAM_MEMBERS : "用户-团队成员（user_id）"
+  TEAMS ||--o{ TEAM_MEMBERS : "团队-成员（team_id）"
 
-  USERS ||--o{ PROJECT_MEMBERS : "user_id"
-  PROJECTS ||--o{ PROJECT_MEMBERS : "project_id"
+  USERS ||--o{ PROJECT_MEMBERS : "用户-项目成员（user_id）"
+  PROJECTS ||--o{ PROJECT_MEMBERS : "项目-成员（project_id）"
 
-  PROJECTS ||--o{ TASKS : "project_id"
-  USERS ||--o{ TASKS : "assignee_id"
+  PROJECTS ||--o{ TASKS : "项目-任务（project_id）"
+  USERS ||--o{ TASKS : "指派人（assignee_id）"
 
-  PROJECTS ||--o{ DISCUSSION_POSTS : "project_id"
-  USERS ||--o{ DISCUSSION_POSTS : "author_id"
-  DISCUSSION_POSTS ||--o{ DISCUSSION_REPLIES : "post_id"
+  PROJECTS ||--o{ DISCUSSION_POSTS : "项目-帖子（project_id）"
+  USERS ||--o{ DISCUSSION_POSTS : "作者（author_id）"
+  DISCUSSION_POSTS ||--o{ DISCUSSION_REPLIES : "帖子-回复（post_id）"
 
-  PROJECTS ||--o{ DOCUMENTS : "project_id"
-  DOCUMENTS ||--o{ DOCUMENT_VERSIONS : "document_id"
+  PROJECTS ||--o{ DOCUMENTS : "项目-文档（project_id）"
+  DOCUMENTS ||--o{ DOCUMENT_VERSIONS : "文档-版本（document_id）"
 
-  PROJECTS ||--|| GIT_REPOSITORIES : "project_id"
-  USERS ||--o{ NOTIFICATIONS : "user_id"
+  PROJECTS ||--|| GIT_REPOSITORIES : "项目-仓库（project_id）"
+  USERS ||--o{ NOTIFICATIONS : "用户-通知（user_id）"
 ```
 
 补充：
@@ -333,7 +333,7 @@ mvn -Dmaven.repo.local=/tmp/educollab-m2 test
 ### 最小冒烟 Checklist
 
 - [ ] 能用默认账号登录
-- [ ] 能进入 Dashboard 并打开项目详情
+- [ ] 能进入仪表盘并打开项目详情
 - [ ] 能创建/更新一个任务
 - [ ] 能打开文档并产生 autosave（查看 Network 调用 `/api/documents/:id/autosave`）
 - [ ] 代码项目能看到 clone-info，并能用 token 进行 git clone（只需验证一次）
