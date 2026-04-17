@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Filter, MessageSquare, Plus, Search } from 'lucide-react';
+import { MessageSquare, Plus, Search } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { useApi } from '@/app/api';
 import { useProjectDetail } from '@/screens/projects/ProjectLayout';
@@ -17,12 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const categories: Array<{ key: string; label: string }> = [
-  { key: 'ALL', label: 'All Posts' },
-  { key: 'GENERAL', label: 'General' },
-  { key: 'HELP_NEEDED', label: 'Help Needed' },
-  { key: 'TASK_ASSIGNMENT', label: 'Task Assignment' },
-  { key: 'BUG_REPORT', label: 'Bug Report' },
-  { key: 'RESOURCES', label: 'Resources' },
+  { key: 'ALL', label: '全部帖子' },
+  { key: 'GENERAL', label: '综合讨论' },
+  { key: 'HELP_NEEDED', label: '需要帮助' },
+  { key: 'TASK_ASSIGNMENT', label: '任务分工' },
+  { key: 'BUG_REPORT', label: '问题反馈' },
+  { key: 'RESOURCES', label: '资料共享' },
 ];
 
 export function ProjectDiscussionsListPage() {
@@ -31,7 +31,7 @@ export function ProjectDiscussionsListPage() {
   const { detail, refresh } = useProjectDetail();
   const [params, setParams] = useSearchParams();
 
-  React.useEffect(() => setTitle([detail.project.name, 'Discussions']), [detail.project.name]);
+  React.useEffect(() => setTitle([detail.project.name, '讨论']), [detail.project.name]);
 
   const category = (params.get('category') || 'ALL').toUpperCase();
   const [q, setQ] = React.useState('');
@@ -70,28 +70,29 @@ export function ProjectDiscussionsListPage() {
   });
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
-      {/* Left rail */}
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
       <div className="space-y-6">
         <Card className="border-muted/60">
           <CardHeader className="pb-3">
-            <CardTitle className="text-xs tracking-wider text-muted-foreground">CATEGORIES</CardTitle>
+            <CardTitle className="text-xs tracking-wider text-muted-foreground">讨论分类</CardTitle>
           </CardHeader>
-          <CardContent className="pt-0 space-y-1">
+          <CardContent className="space-y-1 pt-0">
             {categories.map((c) => {
               const active = c.key === category;
               return (
                 <button
                   key={c.key}
                   className={cn(
-                    'w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-colors',
-                    active ? 'bg-muted text-foreground' : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground',
+                    'flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition-colors',
+                    active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                   )}
-                  onClick={() => setParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set('category', c.key);
-                    return next;
-                  })}
+                  onClick={() =>
+                    setParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.set('category', c.key);
+                      return next;
+                    })
+                  }
                 >
                   <span className="flex items-center gap-2">
                     <MessageSquare size={16} />
@@ -106,30 +107,29 @@ export function ProjectDiscussionsListPage() {
 
         <Card className="border-muted/60">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Quick Actions</CardTitle>
+            <CardTitle className="text-sm">快捷操作</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <Button variant="outline" className="w-full justify-start rounded-xl" onClick={() => nav(`/app/projects/${detail.project.id}/tasks`)}>
-              Create Task
+              新建任务
             </Button>
             <Button variant="outline" className="w-full justify-start rounded-xl" onClick={() => nav(`/app/projects/${detail.project.id}/tasks`)}>
-              Create Todo
+              新建待办
             </Button>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <div className="flex-1 relative">
+          <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search discussions..." className="pl-10 rounded-full" />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索项目讨论..." className="rounded-full pl-10" />
           </div>
 
           <Dialog>
-            <DialogTrigger render={<Button className="rounded-full gap-2" />}>
-              <Plus size={16} /> New Post
+            <DialogTrigger render={<Button className="gap-2 rounded-full" />}>
+              <Plus size={16} /> 新建帖子
             </DialogTrigger>
             <NewPostDialog
               onCreate={async (v) => {
@@ -143,34 +143,34 @@ export function ProjectDiscussionsListPage() {
         <div className="space-y-4">
           {items.map((p) => (
             <Card key={p.id} className="border-muted/60">
-              <CardContent className="p-5 flex items-start justify-between gap-6">
-                <button className="flex-1 text-left min-w-0" onClick={() => nav(`/app/projects/${detail.project.id}/discussions/${p.id}`)}>
+              <CardContent className="flex items-start justify-between gap-6 p-5">
+                <button className="min-w-0 flex-1 text-left" onClick={() => nav(`/app/projects/${detail.project.id}/discussions/${p.id}`)}>
                   <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
+                    <Avatar className="h-10 w-10">
                       <AvatarImage src={avatarByName.get(p.authorName)} />
                       <AvatarFallback>{p.authorName?.slice(0, 1) || 'U'}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <div className="text-base font-semibold truncate">{p.title}</div>
-                      <div className="mt-1 text-xs text-muted-foreground truncate">
-                        {p.authorName} · {p.createdAt} · <Badge variant="outline" className="text-[10px]">{p.category.replaceAll('_', ' ')}</Badge>
+                      <div className="truncate text-base font-semibold">{p.title}</div>
+                      <div className="mt-1 truncate text-xs text-muted-foreground">
+                        {p.authorName} · {p.createdAt} · <Badge variant="outline" className="text-[10px]">{categories.find((item) => item.key === p.category)?.label || p.category}</Badge>
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 text-sm text-muted-foreground line-clamp-2">{p.content || '—'}</div>
+                  <div className="mt-3 line-clamp-2 text-sm text-muted-foreground">{p.content || '暂无内容'}</div>
                   <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>{p.replyCount} replies</span>
-                    <span>{p.linkedTaskCount} linked tasks</span>
+                    <span>{p.replyCount} 条回复</span>
+                    <span>{p.linkedTaskCount} 个关联任务</span>
                   </div>
                 </button>
 
                 <Button variant="outline" className="rounded-full" onClick={() => nav(`/app/projects/${detail.project.id}/discussions/${p.id}`)}>
-                  Open
+                  打开
                 </Button>
               </CardContent>
             </Card>
           ))}
-          {!items.length ? <div className="py-12 text-center text-sm text-muted-foreground">No discussions yet.</div> : null}
+          {!items.length ? <div className="py-12 text-center text-sm text-muted-foreground">当前还没有讨论内容。</div> : null}
         </div>
       </div>
     </div>
@@ -193,15 +193,15 @@ function NewPostDialog({
   return (
     <DialogContent className="max-w-[720px]">
       <DialogHeader>
-        <DialogTitle>New Discussion</DialogTitle>
+        <DialogTitle>新建讨论</DialogTitle>
       </DialogHeader>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+      <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
-          <Label>Title</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What are we discussing?" className="rounded-xl" />
+          <Label>标题</Label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="这次想讨论什么？" className="rounded-xl" />
         </div>
         <div className="space-y-2">
-          <Label>Category</Label>
+          <Label>分类</Label>
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger className="rounded-xl">
               <SelectValue />
@@ -216,17 +216,17 @@ function NewPostDialog({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Status</Label>
-          <Input readOnly value="OPEN" className="rounded-xl" />
+          <Label>状态</Label>
+          <Input readOnly value="开放中" className="rounded-xl" />
         </div>
         <div className="space-y-2 md:col-span-2">
-          <Label>Content</Label>
-          <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Write your post..." className="min-h-[160px] rounded-xl" />
+          <Label>内容</Label>
+          <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="请输入讨论内容..." className="min-h-[160px] rounded-xl" />
         </div>
       </div>
       <DialogFooter>
         <Button variant="outline" className="rounded-full" disabled={pending}>
-          Cancel
+          取消
         </Button>
         <Button
           className="rounded-full"
@@ -235,7 +235,7 @@ function NewPostDialog({
             await onCreate({ title: title.trim(), content: content.trim(), category });
           }}
         >
-          {pending ? 'Creating…' : 'Create Post'}
+          {pending ? '创建中...' : '创建帖子'}
         </Button>
       </DialogFooter>
     </DialogContent>

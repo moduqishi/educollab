@@ -1,98 +1,226 @@
 import React from 'react';
-import { Bell, Check, CheckCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, Check, CheckCheck, ExternalLink, Eye } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
 import { PageHero } from '@/screens/shell/PageHero';
-import { PageError, PageLoading, PageEmpty } from '@/screens/common/States';
+import { PageEmpty, PageError, PageLoading } from '@/screens/common/States';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { notificationSourceTypeLabel, notificationTypeLabel, notificationTypeOptions } from './notificationMeta';
+
+type ReadFilter = 'ALL' | 'UNREAD';
+type TypeFilter = (typeof notificationTypeOptions)[number]['value'];
 
 export function NotificationsPage() {
   const api = useApi();
   const qc = useQueryClient();
-  React.useEffect(() => setTitle(['通知']), []);
+  const navigate = useNavigate();
+  const [readFilter, setReadFilter] = React.useState<ReadFilter>('ALL');
+  const [typeFilter, setTypeFilter] = React.useState<TypeFilter>('ALL');
 
-  const q = useQuery({ queryKey: ['notifications'], queryFn: () => api.notifications() });
+  React.useEffect(() => setTitle(['通知中心']), []);
 
-  const readM = useMutation({
+  const notificationsQ = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api.notifications(),
+  });
+
+  const markReadM = useMutation({
     mutationFn: (id: number) => api.markNotificationRead(id),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['notifications'] });
-      await qc.invalidateQueries({ queryKey: ['dashboard'] });
+    onSuccess: async (_, id) => {
+      qc.setQueryData(['notifications'], (current: Awaited<ReturnType<typeof api.notifications>> | undefined) =>
+        current?.map((item) => (item.id === id ? { ...item, read: true } : item)),
+      );
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['notifications'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+        qc.invalidateQueries({ queryKey: ['notification', id] }),
+      ]);
     },
   });
 
-  const markAll = async () => {
-    const items = q.data || [];
-    const unread = items.filter((x) => !x.read);
-    if (!unread.length) return;
-    await Promise.all(unread.map((n) => readM.mutateAsync(n.id)));
-  };
+  const markAllReadM = useMutation({
+    mutationFn: () => api.markAllNotificationsRead(),
+    onSuccess: async () => {
+      qc.setQueryData(['notifications'], (current: Awaited<ReturnType<typeof api.notifications>> | undefined) =>
+        current?.map((item) => ({ ...item, read: true })),
+      );
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['notifications'] }),
+        qc.invalidateQueries({ queryKey: ['dashboard'] }),
+      ]);
+    },
+  });
 
-  if (q.isLoading) return <PageLoading label="正在加载通知…" />;
-  if (q.isError) return <PageError title="通知加载失败" onRetry={() => q.refetch()} />;
+  if (notificationsQ.isLoading) return <PageLoading label="正在加载通知中心..." />;
+  if (notificationsQ.isError) return <PageError title="通知加载失败" onRetry={() => notificationsQ.refetch()} />;
 
-  const items = q.data || [];
-  const unreadCount = items.filter((x) => !x.read).length;
+  const items = notificationsQ.data || [];
+  const unreadCount = items.filter((item) => !item.read).length;
+  const filteredItems = items.filter((item) => {
+    if (readFilter === 'UNREAD' && item.read) return false;
+    if (typeFilter !== 'ALL' && item.type !== typeFilter) return false;
+    return true;
+  });
 
   return (
     <div>
       <PageHero
-        title="通知"
-        subtitle="保持信息同步：任务变更、讨论回复、文档更新都会汇总在这里。"
+        title="通知中心"
+        subtitle="集中查看任务、讨论、文档与系统动态，并在需要时继续跳回原始业务页面。"
         actions={
-          <Button variant="outline" className="gap-2" onClick={markAll} disabled={!unreadCount || readM.isPending}>
-            <CheckCheck size={16} /> 全部标为已读
-          </Button>
+          <>
+            <Button
+              variant={readFilter === 'ALL' ? 'default' : 'outline'}
+              onClick={() => setReadFilter('ALL')}
+            >
+              全部
+            </Button>
+            <Button
+              variant={readFilter === 'UNREAD' ? 'default' : 'outline'}
+              onClick={() => setReadFilter('UNREAD')}
+            >
+              未读
+            </Button>
+            {notificationTypeOptions.map((option) => (
+              <Button
+                key={option.value}
+                variant={typeFilter === option.value ? 'default' : 'outline'}
+                onClick={() => setTypeFilter(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => markAllReadM.mutate()}
+              disabled={!unreadCount || markAllReadM.isPending}
+            >
+              <CheckCheck size={16} />
+              全部标记已读
+            </Button>
+          </>
         }
         right={
-          <Badge variant="outline" className={cn('bg-primary/5 text-primary border-primary/15', unreadCount ? '' : 'opacity-60')}>
-            未读 {unreadCount}
-          </Badge>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="border-primary/15 bg-primary/5 text-primary">
+              全部 {items.length}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={cn('border-primary/15 bg-primary/5 text-primary', unreadCount ? '' : 'opacity-60')}
+            >
+              未读 {unreadCount}
+            </Badge>
+          </div>
         }
       />
 
       <div className="px-8 pb-10">
-        <div className="max-w-[1200px] mx-auto space-y-4">
-          {!items.length ? (
-            <PageEmpty title="暂无通知" message="当任务/讨论/文档有新动态时，这里会第一时间提醒你。" icon={Bell} />
+        <div className="mx-auto max-w-[1200px] space-y-4">
+          {!filteredItems.length ? (
+            <PageEmpty
+              title={items.length ? '当前筛选下没有通知' : '暂无通知'}
+              message={items.length ? '试试切换筛选条件，或稍后再回来查看。' : '任务、讨论、文档或班级动态会在这里第一时间提醒你。'}
+              icon={Bell}
+            />
           ) : (
-            items.map((n) => (
-              <Card key={n.id} className={cn('border-muted/70', !n.read && 'shadow-lg shadow-primary/10')}>
+            filteredItems.map((notification) => (
+              <Card
+                key={notification.id}
+                className={cn(
+                  'cursor-pointer border-muted/70 transition-shadow hover:shadow-md',
+                  !notification.read && 'shadow-lg shadow-primary/10',
+                )}
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/app/notifications/${notification.id}`)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    navigate(`/app/notifications/${notification.id}`);
+                  }
+                }}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <CardTitle className="text-base truncate">{n.title}</CardTitle>
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {n.createdAt} · {n.type}
+                      <CardTitle className="text-base">{notification.title}</CardTitle>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline">{notificationTypeLabel(notification.type)}</Badge>
+                        <span>{notification.createdAt}</span>
+                        {notification.sourceLabel ? (
+                          <span>来源：{notification.sourceLabel}</span>
+                        ) : notification.sourceType ? (
+                          <span>来源：{notificationSourceTypeLabel(notification.sourceType)}</span>
+                        ) : null}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {!n.read ? (
-                        <Badge className="bg-primary/10 text-primary border-primary/15" variant="outline">
-                          未读
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="opacity-70">
-                          已读
-                        </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        notification.read
+                          ? 'opacity-70'
+                          : 'border-primary/15 bg-primary/10 text-primary',
                       )}
+                    >
+                      {notification.read ? '已读' : '未读'}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                    {notification.content}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigate(`/app/notifications/${notification.id}`);
+                      }}
+                    >
+                      <Eye size={14} />
+                      查看详情
+                    </Button>
+                    {!notification.read ? (
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 gap-2"
-                        disabled={n.read || readM.isPending}
-                        onClick={() => readM.mutate(n.id)}
+                        className="gap-2"
+                        disabled={markReadM.isPending}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          markReadM.mutate(notification.id);
+                        }}
                       >
-                        <Check size={14} /> 标记已读
+                        <Check size={14} />
+                        标记已读
                       </Button>
-                    </div>
+                    ) : null}
+                    {notification.sourcePath ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          navigate(notification.sourcePath!);
+                        }}
+                      >
+                        <ExternalLink size={14} />
+                        查看关联内容
+                      </Button>
+                    ) : null}
                   </div>
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{n.content}</CardContent>
+                </CardContent>
               </Card>
             ))
           )}

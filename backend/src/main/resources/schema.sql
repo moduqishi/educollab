@@ -11,7 +11,27 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS courses (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(120) NOT NULL,
+  class_code VARCHAR(20) UNIQUE,
   teacher_id BIGINT,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL
+);
+CREATE TABLE IF NOT EXISTS class_members (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  course_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  role VARCHAR(20) NOT NULL,
+  joined_via VARCHAR(20),
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  UNIQUE KEY uk_class_member (course_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS class_invitations (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  course_id BIGINT NOT NULL,
+  invited_user_id BIGINT NOT NULL,
+  invited_by_user_id BIGINT NOT NULL,
+  status VARCHAR(20) NOT NULL,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -19,7 +39,9 @@ CREATE TABLE IF NOT EXISTS teams (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   name VARCHAR(120) NOT NULL,
   course_id BIGINT,
+  group_task_id BIGINT,
   leader_id BIGINT,
+  status VARCHAR(20) NOT NULL DEFAULT 'FORMING',
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -33,6 +55,7 @@ CREATE TABLE IF NOT EXISTS projects (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   team_id BIGINT,
   course_id BIGINT,
+  group_task_id BIGINT,
   name VARCHAR(150) NOT NULL,
   description TEXT,
   type VARCHAR(20) NOT NULL,
@@ -136,16 +159,63 @@ CREATE TABLE IF NOT EXISTS notifications (
   title VARCHAR(150) NOT NULL,
   content TEXT NOT NULL,
   type VARCHAR(20) NOT NULL,
+  source_type VARCHAR(20),
+  source_id BIGINT,
+  source_path VARCHAR(255),
+  source_label VARCHAR(100),
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
 CREATE TABLE IF NOT EXISTS assignments (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  project_id BIGINT NOT NULL,
+  project_id BIGINT,
+  course_id BIGINT,
   title VARCHAR(150) NOT NULL,
   summary TEXT,
   submission_url VARCHAR(255),
+  due_date DATE,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL
+);
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  assignment_id BIGINT NOT NULL,
+  student_id BIGINT NOT NULL,
+  content TEXT,
+  submission_url VARCHAR(255),
+  status VARCHAR(20) NOT NULL,
+  score INT,
+  teacher_feedback TEXT,
+  submitted_at DATETIME,
+  reviewed_at DATETIME,
+  attempt_count INT NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL,
+  UNIQUE KEY uk_assignment_submission (assignment_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_assignment ON assignment_submissions (assignment_id);
+CREATE INDEX IF NOT EXISTS idx_assignment_submissions_student ON assignment_submissions (student_id);
+CREATE TABLE IF NOT EXISTS group_tasks (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  course_id BIGINT NOT NULL,
+  created_by BIGINT NOT NULL,
+  title VARCHAR(150) NOT NULL,
+  description TEXT,
+  min_members INT,
+  max_members INT,
+  due_date DATE,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL
+);
+CREATE TABLE IF NOT EXISTS group_task_team_tasks (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  team_id BIGINT NOT NULL,
+  assignee_id BIGINT,
+  title VARCHAR(150) NOT NULL,
+  description TEXT,
+  status VARCHAR(20) NOT NULL,
+  due_date DATE,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -212,6 +282,24 @@ CREATE TABLE IF NOT EXISTS ai_usage_logs (
 -- Older databases might have `discussion_posts` without category/status columns.
 ALTER TABLE discussion_posts ADD COLUMN IF NOT EXISTS category VARCHAR(40) NOT NULL DEFAULT 'GENERAL';
 ALTER TABLE discussion_posts ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'OPEN';
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS class_code VARCHAR(20);
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS group_task_id BIGINT;
+ALTER TABLE teams ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'FORMING';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS group_task_id BIGINT;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS course_id BIGINT;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS content TEXT;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS submission_url VARCHAR(255);
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED';
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS score INT;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS teacher_feedback TEXT;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS submitted_at DATETIME;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS reviewed_at DATETIME;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_type VARCHAR(20);
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_id BIGINT;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_path VARCHAR(255);
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_label VARCHAR(100);
 
 -- documents dual-mode (NOTE/OFFICE)
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'NOTE';

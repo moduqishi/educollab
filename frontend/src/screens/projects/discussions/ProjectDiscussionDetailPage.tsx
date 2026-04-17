@@ -16,11 +16,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const categoryLabel: Record<string, string> = {
-  GENERAL: 'General',
-  HELP_NEEDED: 'Help Needed',
-  TASK_ASSIGNMENT: 'Task Assignment',
-  BUG_REPORT: 'Bug Report',
-  RESOURCES: 'Resources',
+  GENERAL: '综合讨论',
+  HELP_NEEDED: '需要帮助',
+  TASK_ASSIGNMENT: '任务分工',
+  BUG_REPORT: '问题反馈',
+  RESOURCES: '资料共享',
 };
 
 export function ProjectDiscussionDetailPage() {
@@ -37,7 +37,7 @@ export function ProjectDiscussionDetailPage() {
   });
 
   React.useEffect(() => {
-    if (q.data) setTitle([projectDetail.project.name, 'Discussions', q.data.title]);
+    if (q.data) setTitle([projectDetail.project.name, '讨论', q.data.title]);
   }, [projectDetail.project.name, q.data?.title]);
 
   const updateM = useMutation({
@@ -100,22 +100,20 @@ export function ProjectDiscussionDetailPage() {
   React.useEffect(() => {
     const first = projectDetail.tasks?.[0]?.id;
     if (first && !linkTaskId) setLinkTaskId(first);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectDetail.tasks?.length]);
+  }, [projectDetail.tasks, linkTaskId]);
 
-  if (!id) return <div className="text-sm text-muted-foreground">Invalid post.</div>;
-  if (q.isLoading) return <div className="text-sm text-muted-foreground">Loading…</div>;
-  if (q.isError || !d) return <div className="text-sm text-muted-foreground">Failed to load.</div>;
+  if (!id) return <div className="text-sm text-muted-foreground">无效的讨论帖子。</div>;
+  if (q.isLoading) return <div className="text-sm text-muted-foreground">正在加载讨论详情...</div>;
+  if (q.isError || !d) return <div className="text-sm text-muted-foreground">讨论详情加载失败。</div>;
 
   const status = (d.status || 'OPEN').toUpperCase();
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-6">
-      {/* Main */}
-      <Card className="border-muted/60 overflow-hidden">
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_360px]">
+      <Card className="overflow-hidden border-muted/60">
         <CardContent className="p-6">
           <Button variant="ghost" className="px-0 text-muted-foreground hover:text-foreground" onClick={() => nav(`/app/projects/${projectDetail.project.id}/discussions`)}>
-            ← Back to Discussions
+            返回讨论列表
           </Button>
 
           <div className="mt-3 flex items-start justify-between gap-4">
@@ -126,14 +124,14 @@ export function ProjectDiscussionDetailPage() {
                 </Badge>
                 <Badge
                   variant="outline"
-                  className={cn('rounded-full', status === 'OPEN' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-muted text-muted-foreground')}
+                  className={cn('rounded-full', status === 'OPEN' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground')}
                 >
-                  {status === 'OPEN' ? 'Open' : 'Closed'}
+                  {status === 'OPEN' ? '开放中' : '已关闭'}
                 </Badge>
               </div>
               <h2 className="mt-2 text-3xl font-display font-bold tracking-tight">{d.title}</h2>
               <div className="mt-2 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{d.authorName}</span> · Posted on {d.createdAt}
+                <span className="font-medium text-foreground">{d.authorName}</span> · 发布时间 {d.createdAt}
               </div>
             </div>
 
@@ -143,23 +141,22 @@ export function ProjectDiscussionDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {status === 'OPEN' ? (
-                  <DropdownMenuItem onClick={() => updateM.mutate({ status: 'CLOSED' })}>Close discussion</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateM.mutate({ status: 'CLOSED' })}>关闭讨论</DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onClick={() => updateM.mutate({ status: 'OPEN' })}>Re-open discussion</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateM.mutate({ status: 'OPEN' })}>重新开放</DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(window.location.href)}>Copy link</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigator.clipboard.writeText(window.location.href)}>复制链接</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
 
-          <div className="mt-6 text-sm leading-relaxed whitespace-pre-wrap">{d.content}</div>
+          <div className="mt-6 whitespace-pre-wrap text-sm leading-relaxed">{d.content}</div>
 
-          {/* Attachments */}
           <div className="mt-8">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold flex items-center gap-2">
-                <Paperclip size={16} /> Attachments
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Paperclip size={16} /> 附件
               </div>
               <label className="inline-flex">
                 <input
@@ -172,65 +169,63 @@ export function ProjectDiscussionDetailPage() {
                     e.currentTarget.value = '';
                   }}
                 />
-                <Button variant="outline" size="sm" className="rounded-full gap-2" disabled={uploadM.isPending}>
-                  <Plus size={14} /> Upload
+                <Button variant="outline" size="sm" className="gap-2 rounded-full" disabled={uploadM.isPending}>
+                  <Plus size={14} /> 上传
                 </Button>
               </label>
             </div>
 
-            <div className="mt-3 border rounded-2xl overflow-hidden">
+            <div className="mt-3 overflow-hidden rounded-2xl border">
               {(d.attachments || []).length ? (
                 <div className="divide-y">
                   {d.attachments.map((a) => (
-                    <div key={a.id} className="p-3 flex items-center justify-between gap-3">
+                    <div key={a.id} className="flex items-center justify-between gap-3 p-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{a.fileName}</div>
+                        <div className="truncate text-sm font-medium">{a.fileName}</div>
                         <div className="text-[11px] text-muted-foreground">{Math.round((a.sizeBytes || 0) / 1024)} KB · {a.createdAt}</div>
                       </div>
                       <Button variant="outline" size="sm" className="rounded-full" onClick={() => window.open(api.downloadFileUrl(a.id), '_blank')}>
-                        Download
+                        下载
                       </Button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-4 text-sm text-muted-foreground">No attachments.</div>
+                <div className="p-4 text-sm text-muted-foreground">暂无附件。</div>
               )}
             </div>
           </div>
 
-          {/* Action row */}
           <div className="mt-8 flex flex-wrap items-center gap-2">
-            <Button variant="outline" className="rounded-full">Convert to Task</Button>
-            <Button variant="outline" className="rounded-full">Create Todo</Button>
-            <Button variant="outline" className="rounded-full gap-2">
-              <Link2 size={14} /> Link to Branch
+            <Button variant="outline" className="rounded-full">转为任务</Button>
+            <Button variant="outline" className="rounded-full">创建待办</Button>
+            <Button variant="outline" className="gap-2 rounded-full">
+              <Link2 size={14} /> 关联分支
             </Button>
           </div>
 
-          {/* Comments */}
           <div className="mt-10">
-            <div className="text-lg font-display font-bold">Comments ({d.replies?.length || 0})</div>
+            <div className="text-lg font-display font-bold">评论（{d.replies?.length || 0}）</div>
             <div className="mt-4 space-y-4">
               {(d.replies || []).map((r) => {
                 const info = memberByName.get(r.authorName);
                 return (
                   <div key={r.id} className="flex items-start gap-3">
-                    <Avatar className="w-10 h-10">
+                    <Avatar className="h-10 w-10">
                       <AvatarImage src={info?.avatar} />
                       <AvatarFallback>{r.authorName?.slice(0, 1) || 'U'}</AvatarFallback>
                     </Avatar>
-                    <div className="flex-1 border rounded-2xl p-4">
+                    <div className="flex-1 rounded-2xl border p-4">
                       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
                         <div className="min-w-0">
                           <span className="font-semibold text-foreground">{r.authorName}</span>
                         </div>
                         <span>{r.createdAt}</span>
                       </div>
-                      <div className="mt-2 text-sm whitespace-pre-wrap leading-relaxed">{r.content}</div>
+                      <div className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{r.content}</div>
                       <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                        <button className="hover:text-foreground">Like</button>
-                        <button className="hover:text-foreground">Reply</button>
+                        <button className="hover:text-foreground">点赞</button>
+                        <button className="hover:text-foreground">回复</button>
                       </div>
                     </div>
                   </div>
@@ -239,9 +234,9 @@ export function ProjectDiscussionDetailPage() {
             </div>
 
             <div className="mt-8 flex items-end gap-3">
-              <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write a reply…" className="min-h-[120px] rounded-2xl" />
+              <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="写下你的回复..." className="min-h-[120px] rounded-2xl" />
               <Button
-                className="rounded-full gap-2"
+                className="gap-2 rounded-full"
                 disabled={!canReply || replyM.isPending}
                 onClick={async () => {
                   const next = reply.trim();
@@ -249,43 +244,42 @@ export function ProjectDiscussionDetailPage() {
                   await replyM.mutateAsync(next);
                 }}
               >
-                <Send size={16} /> Post Reply
+                <Send size={16} /> 发布回复
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Right rail */}
       <div className="space-y-6">
         <Card className="border-muted/60">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Linked Tasks</CardTitle>
+            <CardTitle className="text-sm">关联任务</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {(d.linkedTasks || []).length ? (
               <div className="space-y-2">
                 {d.linkedTasks.map((t) => (
-                  <div key={t.id} className="p-3 border rounded-2xl flex items-center justify-between gap-3">
+                  <div key={t.id} className="flex items-center justify-between gap-3 rounded-2xl border p-3">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{t.title}</div>
+                      <div className="truncate text-sm font-semibold">{t.title}</div>
                       <div className="mt-1 text-[11px] text-muted-foreground">{t.status}</div>
                     </div>
                     <Button variant="outline" size="sm" className="rounded-full" onClick={() => unlinkM.mutate(t.id)} disabled={unlinkM.isPending}>
-                      Unlink
+                      取消关联
                     </Button>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground">No linked tasks.</div>
+              <div className="text-sm text-muted-foreground">暂无关联任务。</div>
             )}
 
-            <div className="pt-2 border-t">
+            <div className="border-t pt-2">
               <div className="flex items-center gap-2">
                 <Select value={linkTaskId ? String(linkTaskId) : ''} onValueChange={(v) => setLinkTaskId(Number(v))}>
                   <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="Select a task" />
+                    <SelectValue placeholder="选择一个任务" />
                   </SelectTrigger>
                   <SelectContent>
                     {(projectDetail.tasks || []).map((t) => (
@@ -304,7 +298,7 @@ export function ProjectDiscussionDetailPage() {
                   }}
                   disabled={!linkTaskId || linkM.isPending}
                 >
-                  + Link
+                  + 关联
                 </Button>
               </div>
             </div>
@@ -313,13 +307,13 @@ export function ProjectDiscussionDetailPage() {
 
         <Card className="border-muted/60">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Participants</CardTitle>
+            <CardTitle className="text-sm">参与成员</CardTitle>
           </CardHeader>
           <CardContent className="flex items-center gap-2">
             {participants.map((name) => {
               const info = memberByName.get(name);
               return (
-                <Avatar key={name} className="w-10 h-10">
+                <Avatar key={name} className="h-10 w-10">
                   <AvatarImage src={info?.avatar} />
                   <AvatarFallback>{name?.slice(0, 1) || 'U'}</AvatarFallback>
                 </Avatar>

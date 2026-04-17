@@ -14,6 +14,25 @@ export interface UserProfile {
   avatar?: string;
 }
 
+export interface UpdateMyProfilePayload {
+  name: string;
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UserSettingsRecord {
+  notifyInApp: boolean;
+  notifyTask: boolean;
+  notifyAssignment: boolean;
+  notifyGroupTask: boolean;
+  density: 'comfortable' | 'compact';
+  defaultHome: '/app/dashboard' | '/app/classes' | '/app/teams' | '/app/teacher/dashboard';
+  timeFormat: 'relative' | 'absolute';
+}
+
 export interface TeamRecord {
   id: number;
   name: string;
@@ -28,6 +47,46 @@ export interface CourseRecord {
   id: number;
   name: string;
   teacherName?: string | null;
+}
+
+export interface ClassRecord {
+  id: number;
+  name: string;
+  classCode: string;
+  teacherName?: string | null;
+  memberCount: number;
+  pendingInvitationCount: number;
+}
+
+export interface ClassMember {
+  id: number;
+  userId: number;
+  name: string;
+  email: string;
+  userRole: BackendRole;
+  classRole: 'TEACHER' | 'STUDENT';
+  joinedVia?: string | null;
+  avatar?: string;
+}
+
+export interface ClassInvitation {
+  id: number;
+  classId: number;
+  className: string;
+  invitedUserId: number;
+  invitedUserName: string;
+  invitedUserEmail: string;
+  invitedByName: string;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  createdAt: string;
+}
+
+export interface ClassDetail {
+  classInfo: ClassRecord;
+  members: ClassMember[];
+  invitations: ClassInvitation[];
+  assignments: AssignmentRecord[];
+  groupTasks: GroupTaskRecord[];
 }
 
 export interface ProjectRecord {
@@ -50,6 +109,7 @@ export interface TaskRecord {
   title: string;
   description: string;
   status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+  assigneeId?: number | null;
   assigneeName: string;
   dueDate?: string | null;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
@@ -122,6 +182,23 @@ export interface NotificationItem {
   read: boolean;
   createdAt: string;
   type: string;
+  sourceType?: string | null;
+  sourceId?: number | null;
+  sourcePath?: string | null;
+  sourceLabel?: string | null;
+}
+
+export interface NotificationDetail {
+  id: number;
+  title: string;
+  content: string;
+  read: boolean;
+  createdAt: string;
+  type: string;
+  sourceType?: string | null;
+  sourceId?: number | null;
+  sourcePath?: string | null;
+  sourceLabel?: string | null;
 }
 
 export interface DashboardSummary {
@@ -209,6 +286,16 @@ export interface ProjectMember {
   email: string;
   role: string;
   avatar?: string;
+  owner: boolean;
+}
+
+export interface ProjectMemberCandidate {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  avatar?: string;
+  fromClass: boolean;
 }
 
 export interface ProjectDetail {
@@ -218,6 +305,7 @@ export interface ProjectDetail {
   discussions: DiscussionPost[];
   documents: DocumentRecord[];
   members: ProjectMember[];
+  currentUserCanManageMembers: boolean;
   branches: string[];
   commits: CommitRecord[];
   releases: ReleaseRecord[];
@@ -251,20 +339,136 @@ export interface TeacherFeedbackRecord {
   createdAt: string;
 }
 
+export type AssignmentSubmissionStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'RETURNED' | 'GRADED';
+
 export interface AssignmentRecord {
   id: number;
-  projectId: number;
-  projectName: string;
+  classId?: number | null;
+  className?: string | null;
+  projectId?: number | null;
+  projectName?: string | null;
   title: string;
   summary: string;
   submissionUrl: string;
+  dueDate?: string | null;
   createdAt: string;
+  currentUserSubmissionStatus?: AssignmentSubmissionStatus | null;
+  currentUserSubmittedAt?: string | null;
+  currentUserScore?: number | null;
+  currentUserTeacherFeedback?: string | null;
+  totalSubmissions?: number | null;
+  gradedSubmissions?: number | null;
+  pendingSubmissions?: number | null;
+}
+
+export interface AssignmentSubmissionRecord {
+  id?: number | null;
+  assignmentId: number;
+  classId?: number | null;
+  studentId: number;
+  studentName: string;
+  studentEmail: string;
+  content: string;
+  submissionUrl: string;
+  status: AssignmentSubmissionStatus;
+  score?: number | null;
+  teacherFeedback?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  attemptCount: number;
+  attachments: FileAssetRecord[];
+}
+
+export interface AssignmentSubmissionSummary {
+  totalSubmissions: number;
+  gradedSubmissions: number;
+  pendingSubmissions: number;
+}
+
+export interface GroupTaskTeamRecord {
+  id: number;
+  groupTaskId: number;
+  name: string;
+  leaderId?: number | null;
+  leaderName?: string | null;
+  memberCount: number;
+  status: string;
+  canJoin: boolean;
+  canLeave: boolean;
+  canTransfer: boolean;
+  projectId?: number | null;
+}
+
+export interface GroupTaskTeamMember {
+  userId: number;
+  name: string;
+  email: string;
+  avatar?: string;
+  leader: boolean;
+}
+
+export interface GroupTaskTeamDetail {
+  id: number;
+  classId?: number | null;
+  className?: string | null;
+  groupTaskId?: number | null;
+  groupTaskTitle?: string | null;
+  name: string;
+  leaderId?: number | null;
+  leaderName?: string | null;
+  status: string;
+  projectId?: number | null;
+  currentUserLeader: boolean;
+  currentUserMember: boolean;
+  teacherView: boolean;
+  members: GroupTaskTeamMember[];
+  tasks: GroupTaskSubTaskRecord[];
+}
+
+export interface GroupTaskRecord {
+  id: number;
+  classId: number;
+  className: string;
+  title: string;
+  description: string;
+  minMembers?: number | null;
+  maxMembers?: number | null;
+  dueDate?: string | null;
+  createdAt: string;
+  teams: GroupTaskTeamRecord[];
+}
+
+export interface GroupTaskSubTaskRecord {
+  id: number;
+  teamId: number;
+  title: string;
+  description: string;
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | string;
+  assigneeId?: number | null;
+  assigneeName?: string | null;
+  dueDate?: string | null;
+  createdAt: string;
+}
+
+export interface WeeklyReportRecord {
+  id: string;
+  teamId: number;
+  authorId: number;
+  authorName: string;
+  title: string;
+  weekLabel: string;
+  dateRange: string;
+  completed: string;
+  blockers: string;
+  nextPlan: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface FileAssetRecord {
   id: number;
   fileName: string;
-  ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT';
+  ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST' | 'ASSIGNMENT_SUBMISSION';
   ownerId: number;
   mimeType: string;
   sizeBytes: number;

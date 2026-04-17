@@ -126,7 +126,16 @@ public class DocumentService {
         entity.setExcerpt(request.excerpt() != null && !request.excerpt().isBlank() ? request.excerpt() : excerpt(request.currentContent()));
         documentRepository.save(entity);
         if (request.saveVersion()) saveVersion(documentId, request.versionLabel() == null || request.versionLabel().isBlank() ? "手动版本" : request.versionLabel(), request.currentContent(), principal);
-        workspaceService.projectDetail(entity.getProject().getId(), principal).members().stream().filter(member -> !member.id().equals(principal.userId())).forEach(member -> notificationService.create(authService.getUser(member.id()), "文档已更新", "文档“" + entity.getTitle() + "”有新的协同编辑内容", NotificationType.DOCUMENT));
+        workspaceService.projectDetail(entity.getProject().getId(), principal).members().stream().filter(member -> !member.id().equals(principal.userId())).forEach(member -> notificationService.create(
+            authService.getUser(member.id()),
+            "文档已更新",
+            "文档“" + entity.getTitle() + "”有新的协同编辑内容",
+            NotificationType.DOCUMENT,
+            NotificationTarget.of(
+                NotificationSourceType.DOCUMENT,
+                entity.getId(),
+                "/app/projects/" + entity.getProject().getId() + "/documents/" + entity.getId(),
+                "项目文档")));
         return workspaceService.toDocumentRecord(entity);
     }
 

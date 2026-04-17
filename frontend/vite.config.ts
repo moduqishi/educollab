@@ -7,6 +7,45 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+
+  const vendorChunkGroups: Array<[string, string[]]> = [
+    [
+      'vendor-react',
+      ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
+    ],
+    [
+      'vendor-ui',
+      ['@base-ui/react', 'lucide-react', 'motion'],
+    ],
+    [
+      'vendor-collab',
+      ['@hocuspocus/provider', 'yjs'],
+    ],
+    [
+      'vendor-markdown',
+      ['react-markdown'],
+    ],
+  ];
+
+  const getVendorChunkName = (id: string) => {
+    const normalized = id.replace(/\\/g, '/');
+    if (!normalized.includes('/node_modules/')) return undefined;
+
+    for (const [chunkName, packages] of vendorChunkGroups) {
+      if (
+        packages.some(
+          (pkg) =>
+            normalized.includes(`/node_modules/${pkg}/`) ||
+            normalized.includes(`/node_modules/${pkg.replace('/', '\\/')}/`),
+        )
+      ) {
+        return chunkName;
+      }
+    }
+
+    return undefined;
+  };
+
   return {
     plugins: [
       react(),
@@ -150,8 +189,17 @@ export default defineConfig(({mode}) => {
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      // Do not modify; file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            return getVendorChunkName(id);
+          },
+        },
+      },
     },
   };
 });

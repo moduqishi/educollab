@@ -29,7 +29,7 @@ public class SecurityConfig {
         .cors(Customizer.withDefaults())
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/api/auth/**", "/actuator/health", "/git/**").permitAll()
+            .requestMatchers("/api/auth/**", "/actuator/health", "/git/**", "/api/users/*/avatar").permitAll()
             .anyRequest().authenticated()
         )
         .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)

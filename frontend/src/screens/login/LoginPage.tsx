@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { zhCN } from '@/i18n/zh-CN';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
@@ -21,7 +20,6 @@ export function LoginPage() {
   const [mode, setMode] = React.useState<Mode>('login');
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
-
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [name, setName] = React.useState('');
@@ -31,24 +29,22 @@ export function LoginPage() {
   const location = useLocation() as any;
 
   React.useEffect(() => {
-    setTitle([mode === 'login' ? zhCN.auth.titleLogin : zhCN.auth.titleRegister]);
+    setTitle([mode === 'login' ? '登录' : '注册']);
   }, [mode]);
 
   const submit = async () => {
     setError(null);
     setLoading(true);
     try {
-      const res =
-        mode === 'login'
-          ? await api.login(email.trim(), password)
-          : await api.register({ name: name.trim(), email: email.trim(), password, role });
-
+      const res = mode === 'login'
+        ? await api.login(email.trim(), password)
+        : await api.register({ name: name.trim(), email: email.trim(), password, role });
       setToken(res.token);
       setSession(res);
       const to = location?.state?.from || (res.profile.role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard');
       navigate(to, { replace: true });
     } catch (e: any) {
-      setError(e?.message || (mode === 'login' ? '登录失败，请检查账号与密码。' : '注册失败，请稍后再试。'));
+      setError(e?.message || (mode === 'login' ? '登录失败，请检查账号和密码。' : '注册失败，请稍后重试。'));
     } finally {
       setLoading(false);
     }
@@ -57,7 +53,6 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_circle_at_20%_0%,rgba(13,148,136,0.18),transparent_40%),radial-gradient(1200px_circle_at_90%_60%,rgba(14,165,233,0.14),transparent_45%),linear-gradient(180deg,#F7F9FC,#F3F6FB)] flex items-center justify-center p-6">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Brand panel */}
         <Card className="hidden lg:block border-none bg-white/70 backdrop-blur shadow-[0_24px_80px_rgba(18,36,76,0.12)] rounded-[20px] overflow-hidden">
           <div className="p-8">
             <div className="flex items-center gap-3">
@@ -65,32 +60,27 @@ export function LoginPage() {
                 <BookOpen size={24} />
               </div>
               <div>
-                <div className="text-2xl font-display font-bold tracking-tight">{zhCN.brand}</div>
-                <div className="text-sm text-muted-foreground mt-1">项目协作 · 文档协同 · 仓库一体化</div>
+                <div className="text-2xl font-display font-bold tracking-tight">EduCollab</div>
+          <div className="text-sm text-muted-foreground mt-1">课程协作、组队任务、文档协同、项目工作区一体化</div>
               </div>
             </div>
 
             <div className="mt-8 grid grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm">
-                <div className="text-sm font-bold">工作区</div>
-                <div className="text-xs text-muted-foreground mt-1">仪表盘、任务、讨论、通知一站式完成。</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm">
-                <div className="text-sm font-bold">协同文档</div>
-                <div className="text-xs text-muted-foreground mt-1">在线成员可见、自动保存、版本恢复。</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm">
-                <div className="text-sm font-bold">代码仓库</div>
-                <div className="text-xs text-muted-foreground mt-1">分支/MR/发布与项目紧密绑定。</div>
-              </div>
-              <div className="p-4 rounded-2xl bg-white border border-border shadow-sm">
-                <div className="text-sm font-bold">教师评审</div>
-                <div className="text-xs text-muted-foreground mt-1">作业与反馈可追踪，过程更透明。</div>
-              </div>
+              {[
+              ['课程协作', '教师可管理多门课程，学生可加入多门课程。'],
+                ['组队任务', '教师发组队任务，学生自由创建、加入或退出队伍。'],
+                ['协同文档', '支持在线协作文档与版本管理。'],
+                ['队伍项目', '组队完成后以队伍为单位创建项目和仓库。'],
+              ].map(([title, desc]) => (
+                <div key={title} className="p-4 rounded-2xl bg-white border border-border shadow-sm">
+                  <div className="text-sm font-bold">{title}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{desc}</div>
+                </div>
+              ))}
             </div>
 
             <div className="mt-8 p-4 rounded-2xl bg-primary/5 border border-primary/15">
-              <div className="text-xs font-semibold text-primary tracking-wide">{zhCN.auth.demoAccounts}</div>
+              <div className="text-xs font-semibold text-primary tracking-wide">演示账号</div>
               <div className="mt-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">学生</span>
@@ -105,29 +95,28 @@ export function LoginPage() {
           </div>
         </Card>
 
-        {/* Auth card */}
         <Card className="border-none bg-white shadow-[0_24px_80px_rgba(18,36,76,0.12)] rounded-[20px] overflow-hidden">
           <CardHeader className="border-b bg-primary/5">
-            <CardTitle className="text-xl font-display font-bold">{mode === 'login' ? zhCN.auth.titleLogin : zhCN.auth.titleRegister}</CardTitle>
-            <CardDescription>{mode === 'login' ? '使用你的账号进入工作区。' : '创建账号，开始协作。'}</CardDescription>
+            <CardTitle className="text-xl font-display font-bold">{mode === 'login' ? '登录' : '注册'}</CardTitle>
+            <CardDescription>{mode === 'login' ? '使用你的账号进入工作区。' : '创建账号后将自动进入对应工作区。'}</CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-5">
             {mode === 'register' && (
-              <Field label={zhCN.auth.name} icon={<User size={16} />}>
+              <Field label="姓名" icon={<User size={16} />}>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：张三" />
               </Field>
             )}
 
-            <Field label={zhCN.auth.email} icon={<Mail size={16} />}>
+            <Field label="邮箱" icon={<Mail size={16} />}>
               <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@school.edu" />
             </Field>
 
-            <Field label={zhCN.auth.password} icon={<Lock size={16} />}>
+            <Field label="密码" icon={<Lock size={16} />}>
               <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="请输入密码"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') submit();
                 }}
@@ -136,20 +125,20 @@ export function LoginPage() {
 
             {mode === 'register' && (
               <div className="space-y-2">
-                <Label>{zhCN.auth.role}</Label>
+                <Label>身份</Label>
                 <Select value={role} onValueChange={(v: any) => setRole(v)}>
                   <SelectTrigger className="bg-white">
-                    <SelectValue placeholder="选择身份" />
+                    <SelectValue placeholder="请选择身份" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="STUDENT">
                       <div className="flex items-center gap-2">
-                        <GraduationCap size={16} /> {zhCN.auth.student}
+                        <GraduationCap size={16} /> 学生
                       </div>
                     </SelectItem>
                     <SelectItem value="TEACHER">
                       <div className="flex items-center gap-2">
-                        <UserCog size={16} /> {zhCN.auth.teacher}
+                        <UserCog size={16} /> 教师
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -161,15 +150,15 @@ export function LoginPage() {
           </CardContent>
           <CardFooter className="p-6 pt-0 flex flex-col gap-3">
             <Button className="w-full rounded-xl h-11 shadow-lg shadow-primary/20" onClick={submit} disabled={loading}>
-              {loading ? '处理中…' : mode === 'login' ? zhCN.auth.submitLogin : zhCN.auth.submitRegister}
+              {loading ? '处理中...' : mode === 'login' ? '登录' : '注册并进入'}
               <ArrowRight size={16} className="ml-2" />
             </Button>
             <div className="flex items-center justify-between w-full">
               <Button variant="ghost" className="px-0 text-muted-foreground hover:text-foreground" onClick={() => setMode(mode === 'login' ? 'register' : 'login')} disabled={loading}>
-                {mode === 'login' ? zhCN.auth.switchToRegister : zhCN.auth.switchToLogin}
+                {mode === 'login' ? '没有账号？去注册' : '已有账号？去登录'}
               </Button>
-              <Button variant="ghost" className="px-0 text-muted-foreground hover:text-foreground" onClick={() => setError('该功能暂未开放。')} disabled={loading}>
-                {zhCN.auth.forgot}
+              <Button variant="ghost" className="px-0 text-muted-foreground hover:text-foreground" onClick={() => setError('暂不支持找回密码，请联系教师或管理员。')} disabled={loading}>
+                忘记密码
               </Button>
             </div>
           </CardFooter>

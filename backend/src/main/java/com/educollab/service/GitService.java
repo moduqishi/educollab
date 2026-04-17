@@ -80,12 +80,13 @@ public class GitService {
     private void seedRepository(Path bareDir, String slug) throws Exception {
         Path workDir = Files.createTempDirectory("educollab-git-");
         try (Git git = Git.cloneRepository().setURI(bareDir.toUri().toString()).setDirectory(workDir.toFile()).call()) {
-            // ensure we're on "main" (demo default)
             try {
                 git.checkout().setCreateBranch(true).setName("main").call();
             } catch (Exception ignored) {
-                // ignore if already exists
-                try { git.checkout().setName("main").call(); } catch (Exception ignored2) {}
+                try {
+                    git.checkout().setName("main").call();
+                } catch (Exception ignored2) {
+                }
             }
             Files.writeString(workDir.resolve("README.md"), "# " + slug + "\n\nEduCollab code project.\n");
             git.add().addFilepattern("README.md").call();
@@ -103,7 +104,7 @@ public class GitService {
     }
 
     public void createBranch(Long projectId, String name) {
-        GitRepositoryEntity repo = gitRepoRepository.findByProjectId(projectId).orElseThrow(() -> new ApiException("仓库不存在"));
+        GitRepositoryEntity repo = requireRepository(projectId);
         Path temp = null;
         try {
             temp = Files.createTempDirectory("educollab-branch-");
@@ -119,7 +120,8 @@ public class GitService {
     }
 
     public List<String> listBranches(Long projectId) {
-        GitRepositoryEntity repo = gitRepoRepository.findByProjectId(projectId).orElseThrow(() -> new ApiException("仓库不存在"));
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) return List.of();
         try (var repository = new FileRepository(repo.getBarePath())) {
             try (Git git = new Git(repository)) {
                 return git.branchList()
@@ -136,7 +138,8 @@ public class GitService {
     }
 
     public List<CommitView> listCommits(Long projectId) {
-        GitRepositoryEntity repo = gitRepoRepository.findByProjectId(projectId).orElseThrow(() -> new ApiException("仓库不存在"));
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) return List.of();
         try (var repository = new FileRepository(repo.getBarePath())) {
             try (Git git = new Git(repository)) {
                 var head = repository.resolve(Constants.HEAD);
@@ -163,7 +166,8 @@ public class GitService {
     }
 
     public List<FileNode> listFiles(Long projectId) {
-        GitRepositoryEntity repo = gitRepoRepository.findByProjectId(projectId).orElseThrow(() -> new ApiException("仓库不存在"));
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) return List.of();
         try (var repository = new FileRepository(repo.getBarePath()); var walk = new TreeWalk(repository)) {
             var headTree = repository.resolve(Constants.HEAD + "^{tree}");
             if (headTree == null) return List.of();
@@ -180,7 +184,8 @@ public class GitService {
     }
 
     public List<TreeEntry> listTree(Long projectId, String path) {
-        GitRepositoryEntity repo = gitRepoRepository.findByProjectId(projectId).orElseThrow(() -> new ApiException("仓库不存在"));
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) return List.of();
         String base = path == null ? "" : path.trim();
         if (base.startsWith("/")) base = base.substring(1);
         if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
@@ -225,7 +230,7 @@ public class GitService {
     }
 
     public BlobView readBlob(Long projectId, String path) {
-        GitRepositoryEntity repo = gitRepoRepository.findByProjectId(projectId).orElseThrow(() -> new ApiException("仓库不存在"));
+        GitRepositoryEntity repo = requireRepository(projectId);
         String p = path == null ? "" : path.trim();
         if (p.startsWith("/")) p = p.substring(1);
         if (p.isBlank()) throw new ApiException("路径不能为空");
@@ -241,7 +246,7 @@ public class GitService {
                 if (tw.isSubtree()) throw new ApiException("不是文件: " + p);
                 var loader = repository.open(tw.getObjectId(0));
                 long size = loader.getSize();
-                long cap = 1024L * 1024L; // 1MB preview
+                long cap = 1024L * 1024L;
                 byte[] bytes = loader.getBytes((int) Math.min(size, cap));
                 boolean binary = isBinary(bytes);
                 if (binary) {
@@ -254,6 +259,18 @@ public class GitService {
         } catch (Exception ex) {
             throw new ApiException("读取文件失败: " + ex.getMessage());
         }
+    }
+
+    private GitRepositoryEntity findRepository(Long projectId) {
+        return gitRepoRepository.findByProjectId(projectId).orElse(null);
+    }
+
+    private GitRepositoryEntity requireRepository(Long projectId) {
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) {
+            throw new ApiException("仓库尚未初始化");
+        }
+        return repo;
     }
 
     private TreeEntry toEntry(org.eclipse.jgit.lib.Repository repository, String base, TreeWalk walk) throws IOException {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BarChart3, CheckSquare, FileText, GitBranch, MessageSquare, Share2, Settings, Users, Tag, Package } from 'lucide-react';
+import { ArrowLeft, BarChart3, CheckSquare, FileText, GitBranch, MessageSquare, Share2, Settings, Users, Package } from 'lucide-react';
 import { useApi } from '@/app/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,56 +38,49 @@ export function ProjectLayout() {
 
   const detail = q.data;
 
-  // 注意：标题由各子路由页面（概览/任务/讨论/文档/仓库）分别设置，避免父层覆盖子层标题。
-
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['projectDetail', id] });
     await qc.invalidateQueries({ queryKey: ['projects'] });
   };
 
   if (q.isLoading || !detail) {
-    return (
-      <div className="px-8 py-10 text-muted-foreground">
-        {q.isLoading ? '加载项目中…' : '项目不存在或无权限访问。'}
-      </div>
-    );
+    return <div className="px-8 py-10 text-muted-foreground">{q.isLoading ? '正在加载项目...' : '项目不存在或无权访问。'}</div>;
   }
 
   const isCode = detail.project.type === 'CODE';
 
   const tabs = [
-    { to: `/app/projects/${id}/overview`, label: 'Overview', icon: BarChart3 },
-    { to: `/app/projects/${id}/tasks`, label: 'Tasks', icon: CheckSquare },
-    { to: `/app/projects/${id}/discussions`, label: 'Discussions', icon: MessageSquare },
-    { to: `/app/projects/${id}/documents`, label: 'Documents', icon: FileText },
-    ...(isCode ? [{ to: `/app/projects/${id}/repository/files`, label: 'Repository', icon: GitBranch }] : []),
-    ...(isCode ? [{ to: `/app/projects/${id}/releases`, label: 'Releases', icon: Package }] : []),
-    { to: `/app/projects/${id}/members`, label: 'Members', icon: Users },
+    { to: `/app/projects/${id}/overview`, label: '概览', icon: BarChart3 },
+    { to: `/app/projects/${id}/tasks`, label: '任务', icon: CheckSquare },
+    { to: `/app/projects/${id}/discussions`, label: '讨论', icon: MessageSquare },
+    { to: `/app/projects/${id}/documents`, label: '文档', icon: FileText },
+    ...(isCode ? [{ to: `/app/projects/${id}/repository/files`, label: '仓库', icon: GitBranch }] : []),
+    ...(isCode ? [{ to: `/app/projects/${id}/releases`, label: '发布', icon: Package }] : []),
+    { to: `/app/projects/${id}/members`, label: '成员', icon: Users },
   ];
 
   return (
     <ProjectDetailContext.Provider value={{ detail, refresh }}>
       <div className="px-8 pt-6 pb-10">
-        <div className="max-w-[1500px] mx-auto">
-          {/* Header */}
+        <div className="mx-auto max-w-[1500px]">
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav('/app/projects')} title="Back">
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav('/app/projects')} title="返回项目列表">
                   <ArrowLeft size={18} />
                 </Button>
                 <Badge variant="outline" className="rounded-full">
-                  {isCode ? 'Code Project' : 'Non-code Project'}
+                  {isCode ? '代码项目' : '非代码项目'}
                 </Badge>
-                <span className="truncate">{detail.project.courseName || '—'}</span>
+                <span className="truncate">{detail.project.courseName || '未关联课程'}</span>
               </div>
-              <h1 className="mt-2 text-4xl font-display font-bold tracking-tight truncate">{detail.project.name}</h1>
+              <h1 className="mt-2 truncate text-4xl font-display font-bold tracking-tight">{detail.project.name}</h1>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
               <Button
                 variant="outline"
-                className="rounded-full gap-2"
+                className="gap-2 rounded-full"
                 onClick={async () => {
                   try {
                     await navigator.clipboard.writeText(window.location.href);
@@ -96,48 +89,47 @@ export function ProjectLayout() {
                   }
                 }}
               >
-                <Share2 size={16} /> Share
+                <Share2 size={16} /> 分享
               </Button>
 
               <Dialog>
-                <DialogTrigger render={<Button className="rounded-full gap-2" />}>
-                  <Settings size={16} /> Settings
+                <DialogTrigger render={<Button className="gap-2 rounded-full" />}>
+                  <Settings size={16} /> 设置
                 </DialogTrigger>
                 <DialogContent className="max-w-[720px]">
                   <DialogHeader>
-                    <DialogTitle>Project Settings</DialogTitle>
+                    <DialogTitle>项目设置</DialogTitle>
                   </DialogHeader>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+                  <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Project</Label>
+                      <Label>项目名称</Label>
                       <Input readOnly value={detail.project.name} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Team</Label>
-                      <Input readOnly value={detail.project.teamName || '—'} />
+                      <Label>所属团队</Label>
+                      <Input readOnly value={detail.project.teamName || '未关联团队'} />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                      <Label>Description</Label>
-                      <Input readOnly value={detail.project.description || '—'} />
+                      <Label>项目描述</Label>
+                      <Input readOnly value={detail.project.description || '暂无描述'} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Course</Label>
-                      <Input readOnly value={detail.project.courseName || '—'} />
+                    <Label>所属课程</Label>
+                    <Input readOnly value={detail.project.courseName || '未关联课程'} />
                     </div>
                     <div className="space-y-2">
-                      <Label>Due Date</Label>
-                      <Input readOnly value={detail.project.dueDate || '—'} />
+                      <Label>截止日期</Label>
+                      <Input readOnly value={detail.project.dueDate || '未设置'} />
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button variant="outline">Close</Button>
+                    <Button variant="outline">关闭</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
             </div>
           </div>
 
-          {/* Tabs */}
           <div className="mt-6 flex flex-wrap items-center gap-2 border-b pb-3">
             {tabs.map((t) => (
               <NavLink
@@ -145,8 +137,8 @@ export function ProjectLayout() {
                 to={t.to}
                 className={({ isActive }) =>
                   cn(
-                    'px-3 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-colors',
-                    isActive ? 'bg-muted text-foreground shadow-sm' : 'hover:bg-muted/60 text-muted-foreground hover:text-foreground',
+                    'flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors',
+                    isActive ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
                   )
                 }
               >

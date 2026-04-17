@@ -5,6 +5,8 @@ import com.educollab.common.security.JwtPrincipal;
 import com.educollab.dto.WorkspaceDtos.*;
 import com.educollab.model.*;
 import com.educollab.repo.*;
+import com.educollab.service.workspace.WorkspaceProjectMembershipService;
+import com.educollab.service.workspace.WorkspaceRecordMapper;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -35,9 +37,11 @@ public class WorkspaceService {
     private final NotificationService notificationService;
     private final GitService gitService;
     private final FileStorageService fileStorageService;
+    private final WorkspaceProjectMembershipService projectMembershipService;
+    private final WorkspaceRecordMapper recordMapper;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    public WorkspaceService(TeamRepository teamRepository, TeamMemberRepository teamMemberRepository, CourseRepository courseRepository, ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, ProjectAccessService projectAccessService, TaskRepository taskRepository, DiscussionPostRepository discussionPostRepository, DiscussionReplyRepository discussionReplyRepository, DiscussionTaskLinkRepository discussionTaskLinkRepository, DocumentRepository documentRepository, AssignmentRepository assignmentRepository, TeacherFeedbackRepository teacherFeedbackRepository, AuthService authService, NotificationService notificationService, GitService gitService, FileStorageService fileStorageService) {
+    public WorkspaceService(TeamRepository teamRepository, TeamMemberRepository teamMemberRepository, CourseRepository courseRepository, ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, ProjectAccessService projectAccessService, TaskRepository taskRepository, DiscussionPostRepository discussionPostRepository, DiscussionReplyRepository discussionReplyRepository, DiscussionTaskLinkRepository discussionTaskLinkRepository, DocumentRepository documentRepository, AssignmentRepository assignmentRepository, TeacherFeedbackRepository teacherFeedbackRepository, AuthService authService, NotificationService notificationService, GitService gitService, FileStorageService fileStorageService, WorkspaceProjectMembershipService projectMembershipService, WorkspaceRecordMapper recordMapper) {
         this.teamRepository = teamRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.courseRepository = courseRepository;
@@ -55,6 +59,8 @@ public class WorkspaceService {
         this.notificationService = notificationService;
         this.gitService = gitService;
         this.fileStorageService = fileStorageService;
+        this.projectMembershipService = projectMembershipService;
+        this.recordMapper = recordMapper;
     }
 
     public DashboardSummary dashboard(JwtPrincipal principal) {
@@ -65,7 +71,7 @@ public class WorkspaceService {
             projects.size(),
             (int) taskRecords.stream().filter(item -> !"DONE".equals(item.status())).count(),
             (int) notificationService.list(principal.userId()).stream().filter(item -> !item.read()).count(),
-            projects.stream().limit(4).map(this::toProjectRecord).toList(),
+            projects.stream().limit(4).map(recordMapper::toProjectRecord).toList(),
             taskRecords.stream().filter(item -> !"DONE".equals(item.status())).limit(4).toList(),
             documents.stream().limit(4).toList()
         );
@@ -73,8 +79,16 @@ public class WorkspaceService {
 
     public List<TeamRecord> teams(JwtPrincipal principal) {
         Set<Long> ids = principal.role() == UserRole.TEACHER
-            ? teamRepository.findAll().stream().filter(team -> team.getCourse() != null && team.getCourse().getTeacher() != null && principal.userId().equals(team.getCourse().getTeacher().getId())).map(TeamEntity::getId).collect(Collectors.toSet())
-            : projectMemberRepository.findByUserId(principal.userId()).stream().map(member -> member.getProject().getTeam().getId()).collect(Collectors.toSet());
+            ? teamRepository.findAll().stream()
+                .filter(team -> team.getGroupTask() != null)
+                .filter(team -> team.getCourse() != null && team.getCourse().getTeacher() != null && principal.userId().equals(team.getCourse().getTeacher().getId()))
+                .map(TeamEntity::getId)
+                .collect(Collectors.toSet())
+            : teamMemberRepository.findByUserId(principal.userId()).stream()
+                .map(TeamMemberEntity::getTeam)
+                .filter(team -> team.getGroupTask() != null)
+                .map(TeamEntity::getId)
+                .collect(Collectors.toSet());
         return teamRepository.findAllById(ids).stream()
             .map(team -> new TeamRecord(
                 team.getId(),
@@ -89,46 +103,47 @@ public class WorkspaceService {
     }
 
     public List<ProjectRecord> projects(JwtPrincipal principal) {
-        return visibleProjects(principal).stream().map(this::toProjectRecord).toList();
+        return visibleProjects(principal).stream().map(recordMapper::toProjectRecord).toList();
     }
 
     public List<TaskRecord> tasks(JwtPrincipal principal) {
         List<Long> projectIds = visibleProjects(principal).stream().map(ProjectEntity::getId).toList();
         if (projectIds.isEmpty()) return List.of();
-        return taskRepository.findByProjectIdIn(projectIds).stream().sorted(Comparator.comparing(TaskEntity::getUpdatedAt).reversed()).map(this::toTaskRecord).toList();
+        return taskRepository.findByProjectIdIn(projectIds).stream().sorted(Comparator.comparing(TaskEntity::getUpdatedAt).reversed()).map(recordMapper::toTaskRecord).toList();
     }
 
     public List<DiscussionPost> discussions(JwtPrincipal principal) {
         List<Long> projectIds = visibleProjects(principal).stream().map(ProjectEntity::getId).toList();
         if (projectIds.isEmpty()) return List.of();
-        return discussionPostRepository.findByProjectIdInOrderByUpdatedAtDesc(projectIds).stream().map(this::toDiscussionListItem).toList();
+        return discussionPostRepository.findByProjectIdInOrderByUpdatedAtDesc(projectIds).stream().map(recordMapper::toDiscussionListItem).toList();
     }
 
     public List<DocumentRecord> documents(JwtPrincipal principal) {
         List<Long> projectIds = visibleProjects(principal).stream().map(ProjectEntity::getId).toList();
         if (projectIds.isEmpty()) return List.of();
-        return documentRepository.findByProjectIdIn(projectIds).stream().sorted(Comparator.comparing(DocumentEntity::getUpdatedAt).reversed()).map(this::toDocumentRecord).toList();
+        return documentRepository.findByProjectIdIn(projectIds).stream().sorted(Comparator.comparing(DocumentEntity::getUpdatedAt).reversed()).map(recordMapper::toDocumentRecord).toList();
     }
 
     public ProjectDetail projectDetail(Long projectId, JwtPrincipal principal) {
         ProjectEntity project = requireVisible(projectId, principal);
-        List<TaskRecord> projectTasks = taskRepository.findByProjectId(projectId).stream().map(this::toTaskRecord).toList();
-        List<DiscussionPost> posts = discussionPostRepository.findByProjectIdOrderByUpdatedAtDesc(projectId).stream().map(this::toDiscussionListItem).toList();
-        List<DocumentRecord> docs = documentRepository.findByProjectId(projectId).stream().map(this::toDocumentRecord).toList();
-        List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId).stream().map(pm -> new ProjectMember(pm.getUser().getId(), pm.getUser().getName(), pm.getUser().getEmail(), pm.getUser().getRole().name(), pm.getUser().getAvatar())).toList();
-        List<String> branches = project.getType() == ProjectType.CODE ? gitService.listBranches(projectId) : List.of();
-        List<GitService.CommitView> commits = project.getType() == ProjectType.CODE ? gitService.listCommits(projectId) : List.of();
+        List<TaskRecord> projectTasks = taskRepository.findByProjectId(projectId).stream().map(recordMapper::toTaskRecord).toList();
+        List<DiscussionPost> posts = discussionPostRepository.findByProjectIdOrderByUpdatedAtDesc(projectId).stream().map(recordMapper::toDiscussionListItem).toList();
+        List<DocumentRecord> docs = documentRepository.findByProjectId(projectId).stream().map(recordMapper::toDocumentRecord).toList();
+        List<ProjectMember> members = projectMemberRepository.findByProjectId(projectId).stream().map(recordMapper::toProjectMember).toList();
+        List<String> branches = project.getType() == ProjectType.CODE ? safeListBranches(projectId) : List.of();
+        List<GitService.CommitView> commits = project.getType() == ProjectType.CODE ? safeListCommits(projectId) : List.of();
         return new ProjectDetail(
-            toProjectRecord(project),
-            new ProjectStats(projectTasks.size(), (int) projectTasks.stream().filter(task -> "DONE".equals(task.status())).count(), posts.size(), docs.size(), gitService.listReleases(projectId).size(), commits.size()),
+            recordMapper.toProjectRecord(project),
+            new ProjectStats(projectTasks.size(), (int) projectTasks.stream().filter(task -> "DONE".equals(task.status())).count(), posts.size(), docs.size(), safeListReleases(projectId).size(), commits.size()),
             projectTasks,
             posts,
             docs,
             members,
+            projectMembershipService.canManageProjectMembers(projectId, principal),
             branches,
             commits.stream().map(commit -> new CommitRecord(commit.hash(), commit.message(), commit.authorName(), commit.createdAt(), commit.branch())).toList(),
-            gitService.listReleases(projectId).stream().map(release -> new ReleaseRecord(release.getId(), release.getVersion(), release.getTitle(), release.getDescription(), formatter.format(release.getCreatedAt()))).toList(),
-            gitService.listMergeRequests(projectId).stream().map(mr -> new MergeRequestRecord(mr.getId(), mr.getTitle(), mr.getSourceBranch(), mr.getTargetBranch(), mr.getStatus().name())).toList()
+            safeListReleases(projectId).stream().map(release -> new ReleaseRecord(release.getId(), release.getVersion(), release.getTitle(), release.getDescription(), formatter.format(release.getCreatedAt()))).toList(),
+            safeListMergeRequests(projectId).stream().map(mr -> new MergeRequestRecord(mr.getId(), mr.getTitle(), mr.getSourceBranch(), mr.getTargetBranch(), mr.getStatus().name())).toList()
         );
     }
 
@@ -153,11 +168,13 @@ public class WorkspaceService {
 
     @Transactional
     public ProjectRecord createProject(ProjectSaveRequest request, JwtPrincipal principal) {
+        if (request.teamId() == null || request.courseId() == null) throw new ApiException("请从组队任务中的队伍创建项目");
         TeamEntity team = teamRepository.findById(request.teamId()).orElseThrow(() -> new ApiException("团队不存在"));
         CourseEntity course = courseRepository.findById(request.courseId()).orElseThrow(() -> new ApiException("课程不存在"));
         ProjectEntity project = new ProjectEntity();
         project.setTeam(team);
         project.setCourse(course);
+        project.setGroupTask(team.getGroupTask());
         project.setName(request.name());
         project.setDescription(request.description());
         project.setType(ProjectType.valueOf(request.type()));
@@ -174,7 +191,7 @@ public class WorkspaceService {
         if (request.initRepository() && project.getType() == ProjectType.CODE) {
             gitService.ensureRepository(project);
         }
-        return toProjectRecord(project);
+        return recordMapper.toProjectRecord(project);
     }
 
     @Transactional
@@ -191,9 +208,21 @@ public class WorkspaceService {
         taskRepository.save(task);
         refreshProjectProgress(project.getId());
         if (task.getAssignee() != null) {
-            notificationService.create(task.getAssignee(), "任务已分配", "你被分配到任务：“" + task.getTitle() + "”", NotificationType.TASK);
+            notificationService.create(
+                task.getAssignee(),
+                "任务已分配",
+                "你被分配到任务：“" + task.getTitle() + "”",
+                NotificationType.TASK,
+                NotificationTarget.of(NotificationSourceType.TASK, task.getId(), "/app/tasks/" + task.getId(), "任务详情"));
         }
-        return toTaskRecord(task);
+        return recordMapper.toTaskRecord(task);
+    }
+
+    @Transactional
+    public void deleteTaskAttachment(Long taskId, Long fileId, JwtPrincipal principal) {
+        TaskEntity task = taskRepository.findById(taskId).orElseThrow(() -> new ApiException("任务不存在"));
+        requireVisible(task.getProject().getId(), principal);
+        fileStorageService.deleteOwnedFile(FileOwnerType.TASK, taskId, fileId);
     }
 
     @Transactional
@@ -207,7 +236,12 @@ public class WorkspaceService {
         entity.setCategory(DiscussionCategory.valueOf(Objects.requireNonNullElse(request.category(), "GENERAL")));
         entity.setStatus(DiscussionStatus.OPEN);
         discussionPostRepository.save(entity);
-        projectMemberRepository.findByProjectId(project.getId()).stream().map(ProjectMemberEntity::getUser).filter(user -> !user.getId().equals(principal.userId())).forEach(user -> notificationService.create(user, "新讨论", "项目“" + project.getName() + "”新增讨论：“" + entity.getTitle() + "”", NotificationType.DISCUSSION));
+        projectMemberRepository.findByProjectId(project.getId()).stream().map(ProjectMemberEntity::getUser).filter(user -> !user.getId().equals(principal.userId())).forEach(user -> notificationService.create(
+            user,
+            "新讨论",
+            "项目“" + project.getName() + "”新增讨论：“" + entity.getTitle() + "”",
+            NotificationType.DISCUSSION,
+            discussionTarget(project.getId(), entity.getId())));
         return discussionDetail(entity.getId(), principal);
     }
 
@@ -220,7 +254,12 @@ public class WorkspaceService {
         entity.setAuthor(authService.getUser(principal.userId()));
         entity.setContent(request.content());
         discussionReplyRepository.save(entity);
-        notificationService.create(post.getAuthor(), "讨论收到回复", "你的讨论“" + post.getTitle() + "”有新的回复", NotificationType.DISCUSSION);
+        notificationService.create(
+            post.getAuthor(),
+            "讨论收到回复",
+            "你的讨论“" + post.getTitle() + "”有新的回复",
+            NotificationType.DISCUSSION,
+            discussionTarget(post.getProject().getId(), post.getId()));
         return discussionDetail(postId, principal);
     }
 
@@ -229,7 +268,7 @@ public class WorkspaceService {
         requireVisible(post.getProject().getId(), principal);
         List<DiscussionReply> replies = discussionReplyRepository.findByPostIdOrderByCreatedAtAsc(postId).stream().map(reply -> new DiscussionReply(reply.getId(), reply.getAuthor().getName(), reply.getContent(), formatter.format(reply.getCreatedAt()))).toList();
         List<FileAssetRecord> attachments = fileStorageService.list(FileOwnerType.DISCUSSION_POST, postId);
-        List<TaskRecord> linkedTasks = discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(link -> toTaskRecord(link.getTask())).toList();
+        List<TaskRecord> linkedTasks = discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(link -> recordMapper.toTaskRecord(link.getTask())).toList();
         return new DiscussionDetail(
             post.getId(),
             post.getProject().getId(),
@@ -268,7 +307,7 @@ public class WorkspaceService {
             link.setTask(task);
             discussionTaskLinkRepository.save(link);
         }
-        return discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(item -> toTaskRecord(item.getTask())).toList();
+        return discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(item -> recordMapper.toTaskRecord(item.getTask())).toList();
     }
 
     @Transactional
@@ -276,25 +315,32 @@ public class WorkspaceService {
         DiscussionPostEntity post = discussionPostRepository.findById(postId).orElseThrow(() -> new ApiException("讨论不存在"));
         requireVisible(post.getProject().getId(), principal);
         discussionTaskLinkRepository.findByPostIdAndTaskId(postId, taskId).ifPresent(discussionTaskLinkRepository::delete);
-        return discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(item -> toTaskRecord(item.getTask())).toList();
+        return discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(item -> recordMapper.toTaskRecord(item.getTask())).toList();
     }
 
     public List<TaskRecord> linkedTasks(Long postId, JwtPrincipal principal) {
         DiscussionPostEntity post = discussionPostRepository.findById(postId).orElseThrow(() -> new ApiException("讨论不存在"));
         requireVisible(post.getProject().getId(), principal);
-        return discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(item -> toTaskRecord(item.getTask())).toList();
+        return discussionTaskLinkRepository.findByPostIdOrderByCreatedAtDesc(postId).stream().map(item -> recordMapper.toTaskRecord(item.getTask())).toList();
     }
 
     public TeacherOverview teacherOverview(JwtPrincipal principal) {
         List<ProjectEntity> projects = visibleProjects(principal);
         List<ContributionRow> rows = projects.stream().flatMap(project -> projectMemberRepository.findByProjectId(project.getId()).stream().map(member -> {
             int tasksDone = (int) taskRepository.findByProjectId(project.getId()).stream().filter(task -> task.getAssignee() != null && task.getAssignee().getId().equals(member.getUser().getId()) && task.getStatus() == TaskStatus.DONE).count();
-            int commits = project.getType() == ProjectType.CODE ? (int) gitService.listCommits(project.getId()).stream().filter(item -> item.authorName().equals(member.getUser().getName())).count() : 0;
+            int commits = project.getType() == ProjectType.CODE ? (int) safeListCommits(project.getId()).stream().filter(item -> item.authorName().equals(member.getUser().getName())).count() : 0;
             int engagement = Math.min(100, 40 + tasksDone * 12 + commits * 6);
             return new ContributionRow(member.getUser().getName(), project.getName(), tasksDone, commits, engagement);
         })).toList();
+        int activeStudents = (int) projects.stream()
+            .flatMap(project -> projectMemberRepository.findByProjectId(project.getId()).stream())
+            .map(ProjectMemberEntity::getUser)
+            .filter(user -> user.getRole() == UserRole.STUDENT)
+            .map(UserEntity::getId)
+            .distinct()
+            .count();
         int averageProgress = projects.isEmpty() ? 0 : (int) projects.stream().mapToInt(ProjectEntity::getProgress).average().orElse(0);
-        return new TeacherOverview(projects.size(), rows.size(), feedbacks(principal).size(), averageProgress, projects.stream().map(this::toProjectRecord).toList(), rows);
+        return new TeacherOverview(projects.size(), activeStudents, feedbacks(principal).size(), averageProgress, projects.stream().map(recordMapper::toProjectRecord).toList(), rows);
     }
 
     public List<TeacherFeedbackRecord> feedbacks(JwtPrincipal principal) {
@@ -310,12 +356,35 @@ public class WorkspaceService {
         entity.setScore(request.score());
         entity.setContent(request.content());
         teacherFeedbackRepository.save(entity);
-        projectMemberRepository.findByProjectId(project.getId()).stream().map(ProjectMemberEntity::getUser).forEach(user -> notificationService.create(user, "教师反馈已更新", "项目“" + project.getName() + "”收到新的评分反馈", NotificationType.SYSTEM));
+        projectMemberRepository.findByProjectId(project.getId()).stream().map(ProjectMemberEntity::getUser).forEach(user -> notificationService.create(
+            user,
+            "教师反馈已更新",
+            "项目“" + project.getName() + "”收到新的评分反馈",
+            NotificationType.SYSTEM,
+            NotificationTarget.none()));
         return new TeacherFeedbackRecord(entity.getId(), project.getId(), project.getName(), entity.getScore(), entity.getContent(), entity.getTeacher().getName(), formatter.format(entity.getCreatedAt()));
     }
 
     public List<AssignmentRecord> assignments(JwtPrincipal principal) {
-        return assignmentRepository.findByProjectCourseTeacherId(principal.userId()).stream().map(item -> new AssignmentRecord(item.getId(), item.getProject().getId(), item.getProject().getName(), item.getTitle(), item.getSummary(), item.getSubmissionUrl(), formatter.format(item.getCreatedAt()))).toList();
+        return assignmentRepository.findByCourseTeacherIdOrderByCreatedAtDesc(principal.userId()).stream().map(item -> new AssignmentRecord(
+            item.getId(),
+            item.getCourse() != null ? item.getCourse().getId() : null,
+            item.getCourse() != null ? item.getCourse().getName() : null,
+            item.getProject() != null ? item.getProject().getId() : null,
+            item.getProject() != null ? item.getProject().getName() : null,
+            item.getTitle(),
+            item.getSummary(),
+            item.getSubmissionUrl(),
+            item.getDueDate() != null ? item.getDueDate().toString() : null,
+            formatter.format(item.getCreatedAt()),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        )).toList();
     }
 
     public ProjectEntity requireVisible(Long projectId, JwtPrincipal principal) {
@@ -327,83 +396,67 @@ public class WorkspaceService {
     }
 
     public ProjectRecord toProjectRecord(ProjectEntity project) {
-        return new ProjectRecord(project.getId(), project.getName(), project.getDescription(), project.getType().name(), project.getStatus().name(), project.getProgress(), project.getCourse() != null ? project.getCourse().getName() : "", project.getTeam() != null ? project.getTeam().getName() : "", project.getDueDate() != null ? project.getDueDate().toString() : null, projectMemberRepository.findByProjectId(project.getId()).stream().map(item -> item.getUser().getAvatar()).toList());
+        return recordMapper.toProjectRecord(project);
+    }
+
+    public DocumentRecord toDocumentRecord(DocumentEntity entity) {
+        return recordMapper.toDocumentRecord(entity);
+    }
+
+    public List<ProjectMemberCandidate> projectMemberCandidates(Long projectId, JwtPrincipal principal) {
+        return projectMembershipService.projectMemberCandidates(projectId, principal);
     }
 
     @Transactional
     public void addProjectMember(Long projectId, Long userId, JwtPrincipal principal) {
-        ProjectEntity project = projectRepository.findById(projectId).orElseThrow(() -> new ApiException("项目不存在"));
-        requireVisible(projectId, principal); // must at least see the project
-        boolean isTeacher = principal.role() == UserRole.TEACHER;
-        boolean isOwner = projectMemberRepository.findByProjectIdAndUserId(projectId, principal.userId()).map(ProjectMemberEntity::isOwnerFlag).orElse(false);
-        if (!isTeacher && !isOwner) throw new ApiException("无权管理成员");
-
-        if (projectMemberRepository.findByProjectIdAndUserId(projectId, userId).isPresent()) return;
-        UserEntity user = authService.getUser(userId);
-
-        ProjectMemberEntity pm = new ProjectMemberEntity();
-        pm.setProject(project);
-        pm.setUser(user);
-        pm.setOwnerFlag(false);
-        projectMemberRepository.save(pm);
-
-        // ensure user is in team as well
-        if (project.getTeam() != null) {
-            boolean exists = teamMemberRepository.findByTeamId(project.getTeam().getId()).stream().anyMatch(tm -> tm.getUser().getId().equals(userId));
-            if (!exists) {
-                TeamMemberEntity tm = new TeamMemberEntity();
-                tm.setTeam(project.getTeam());
-                tm.setUser(user);
-                teamMemberRepository.save(tm);
-            }
-        }
-        notificationService.create(user, "已加入项目", "你已被邀请加入项目：“" + project.getName() + "”", NotificationType.SYSTEM);
+        projectMembershipService.addProjectMember(projectId, userId, principal);
     }
 
     @Transactional
     public void removeProjectMember(Long projectId, Long userId, JwtPrincipal principal) {
-        ProjectEntity project = projectRepository.findById(projectId).orElseThrow(() -> new ApiException("项目不存在"));
-        requireVisible(projectId, principal);
-        boolean isTeacher = principal.role() == UserRole.TEACHER;
-        boolean isOwner = projectMemberRepository.findByProjectIdAndUserId(projectId, principal.userId()).map(ProjectMemberEntity::isOwnerFlag).orElse(false);
-        if (!isTeacher && !isOwner) throw new ApiException("无权管理成员");
+        projectMembershipService.removeProjectMember(projectId, userId, principal);
+    }
 
-        if (principal.userId().equals(userId)) throw new ApiException("不能移除自己");
+    @Transactional
+    public void addProjectMemberManaged(Long projectId, Long userId, JwtPrincipal principal) {
+        projectMembershipService.addProjectMember(projectId, userId, principal);
+    }
 
-        ProjectMemberEntity target = projectMemberRepository.findByProjectIdAndUserId(projectId, userId).orElseThrow(() -> new ApiException("成员不存在"));
-        if (target.isOwnerFlag()) {
-            long owners = projectMemberRepository.findByProjectId(projectId).stream().filter(ProjectMemberEntity::isOwnerFlag).count();
-            if (owners <= 1) throw new ApiException("不能移除唯一负责人");
+    @Transactional
+    public void removeProjectMemberManaged(Long projectId, Long userId, JwtPrincipal principal) {
+        projectMembershipService.removeProjectMember(projectId, userId, principal);
+    }
+
+    private List<String> safeListBranches(Long projectId) {
+        try {
+            return gitService.listBranches(projectId);
+        } catch (ApiException ex) {
+            return List.of();
         }
-        projectMemberRepository.delete(target);
     }
 
-    public TaskRecord toTaskRecord(TaskEntity task) {
-        return new TaskRecord(task.getId(), task.getProject().getId(), task.getProject().getName(), task.getTitle(), task.getDescription(), task.getStatus().name(), task.getAssignee() != null ? task.getAssignee().getName() : "未分配", task.getDueDate() != null ? task.getDueDate().toString() : null, task.getPriority().name());
+    private List<GitService.CommitView> safeListCommits(Long projectId) {
+        try {
+            return gitService.listCommits(projectId);
+        } catch (ApiException ex) {
+            return List.of();
+        }
     }
 
-    public DiscussionPost toDiscussionListItem(DiscussionPostEntity entity) {
-        int replies = discussionReplyRepository.findByPostIdOrderByCreatedAtAsc(entity.getId()).size();
-        int linked = (int) discussionTaskLinkRepository.countByPostId(entity.getId());
-        return new DiscussionPost(entity.getId(), entity.getProject().getId(), entity.getProject().getName(), entity.getTitle(), entity.getContent(), entity.getAuthor().getName(), replies, formatter.format(entity.getCreatedAt()), entity.getCategory().name(), entity.getStatus().name(), linked);
+    private List<ProjectReleaseEntity> safeListReleases(Long projectId) {
+        try {
+            return gitService.listReleases(projectId);
+        } catch (ApiException ex) {
+            return List.of();
+        }
     }
 
-    public DocumentRecord toDocumentRecord(DocumentEntity entity) {
-        List<String> collaborators = projectMemberRepository.findByProjectId(entity.getProject().getId()).stream().map(item -> item.getUser().getName()).toList();
-        return new DocumentRecord(
-            entity.getId(),
-            entity.getProject().getId(),
-            entity.getProject().getName(),
-            entity.getTitle(),
-            entity.getExcerpt(),
-            formatter.format(entity.getUpdatedAt()),
-            collaborators,
-            entity.getCollabKey(),
-            entity.getCurrentContent(),
-            entity.getKind() != null ? entity.getKind().name() : "NOTE",
-            entity.getOfficeExt(),
-            entity.getFileAssetId()
-        );
+    private List<MergeRequestEntity> safeListMergeRequests(Long projectId) {
+        try {
+            return gitService.listMergeRequests(projectId);
+        } catch (ApiException ex) {
+            return List.of();
+        }
     }
 
     @Transactional
@@ -413,5 +466,13 @@ public class WorkspaceService {
         int progress = tasks.isEmpty() ? 0 : (int) Math.round(tasks.stream().filter(task -> task.getStatus() == TaskStatus.DONE).count() * 100.0 / tasks.size());
         project.setProgress(progress);
         projectRepository.save(project);
+    }
+
+    private NotificationTarget discussionTarget(Long projectId, Long postId) {
+        return NotificationTarget.of(
+            NotificationSourceType.DISCUSSION,
+            postId,
+            "/app/projects/" + projectId + "/discussions/" + postId,
+            "项目讨论");
     }
 }

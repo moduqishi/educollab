@@ -332,9 +332,9 @@ export function GlobalTasksView({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="LOW">LOW</SelectItem>
-                      <SelectItem value="MEDIUM">MEDIUM</SelectItem>
-                      <SelectItem value="HIGH">HIGH</SelectItem>
+                      <SelectItem value="LOW">低</SelectItem>
+                      <SelectItem value="MEDIUM">中</SelectItem>
+                      <SelectItem value="HIGH">高</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -596,11 +596,11 @@ export function GlobalDiscussionsView({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="GENERAL">General</SelectItem>
-                    <SelectItem value="HELP_NEEDED">Help needed</SelectItem>
-                    <SelectItem value="TASK_ASSIGNMENT">Task assignment</SelectItem>
-                    <SelectItem value="BUG_REPORT">Bug report</SelectItem>
-                    <SelectItem value="RESOURCES">Resources</SelectItem>
+                    <SelectItem value="GENERAL">综合讨论</SelectItem>
+                    <SelectItem value="HELP_NEEDED">需要帮助</SelectItem>
+                    <SelectItem value="TASK_ASSIGNMENT">任务分配</SelectItem>
+                    <SelectItem value="BUG_REPORT">缺陷反馈</SelectItem>
+                    <SelectItem value="RESOURCES">资料共享</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

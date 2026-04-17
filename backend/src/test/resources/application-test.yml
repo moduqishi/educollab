@@ -1,9 +1,15 @@
 spring:
+  main:
+    banner-mode: off
   datasource:
     url: jdbc:h2:mem:educollab;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password:
     driver-class-name: org.h2.Driver
+  security:
+    user:
+      name: test-user
+      password: test-password
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -14,3 +20,10 @@ app:
   ai:
     api-key: test-key
     base-url: http://localhost:9999/v1
+logging:
+  level:
+    root: warn
+    com.educollab: warn
+    org.springframework: warn
+    org.hibernate: warn
+    com.zaxxer.hikari: warn
