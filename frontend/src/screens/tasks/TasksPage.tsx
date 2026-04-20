@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Calendar, Plus, UserCircle2 } from 'lucide-react';
+import { ArrowRight, Calendar, Plus, Search, UserCircle2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { setTitle } from '@/app/title';
@@ -9,11 +9,13 @@ import { PageEmpty, PageError, PageLoading } from '@/screens/common/States';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { taskPriorityLabel, taskStatusLabel } from '@/components/tasks/TaskFormPage';
 
 export function TasksPage() {
   const api = useApi();
   const navigate = useNavigate();
+  const [search, setSearch] = React.useState('');
   React.useEffect(() => setTitle(['任务']), []);
 
   const tasksQ = useQuery({ queryKey: ['tasks'], queryFn: () => api.tasks() });
@@ -21,7 +23,9 @@ export function TasksPage() {
   if (tasksQ.isLoading) return <PageLoading label="正在加载任务..." />;
   if (tasksQ.isError) return <PageError title="任务加载失败" onRetry={() => tasksQ.refetch()} />;
 
-  const tasks = tasksQ.data || [];
+  const tasks = (tasksQ.data || []).filter(t =>
+    !search.trim() || t.title.toLowerCase().includes(search.trim().toLowerCase()) || (t.projectName || '').toLowerCase().includes(search.trim().toLowerCase())
+  );
 
   return (
     <div>
@@ -29,10 +33,31 @@ export function TasksPage() {
         title="任务"
         subtitle="点击任务卡片会进入独立编辑页，不再使用小弹窗。"
         actions={
-          <Button className="gap-2" onClick={() => navigate('/app/tasks/new')}>
-            <Plus size={16} />
-            新建任务
-          </Button>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* 搜索栏 */}
+            <div className="relative w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索任务标题..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 pr-9 h-9"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <span className="text-sm text-muted-foreground">{tasks.length} 个任务</span>
+            <Button className="gap-2 ml-auto" onClick={() => navigate('/app/tasks/new')}>
+              <Plus size={16} />
+              新建任务
+            </Button>
+          </div>
         }
       />
 

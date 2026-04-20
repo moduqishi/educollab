@@ -13,6 +13,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -80,13 +81,11 @@ public class WorkspaceService {
     public List<TeamRecord> teams(JwtPrincipal principal) {
         Set<Long> ids = principal.role() == UserRole.TEACHER
             ? teamRepository.findAll().stream()
-                .filter(team -> team.getGroupTask() != null)
                 .filter(team -> team.getCourse() != null && team.getCourse().getTeacher() != null && principal.userId().equals(team.getCourse().getTeacher().getId()))
                 .map(TeamEntity::getId)
                 .collect(Collectors.toSet())
             : teamMemberRepository.findByUserId(principal.userId()).stream()
                 .map(TeamMemberEntity::getTeam)
-                .filter(team -> team.getGroupTask() != null)
                 .map(TeamEntity::getId)
                 .collect(Collectors.toSet());
         return teamRepository.findAllById(ids).stream()
@@ -97,9 +96,89 @@ public class WorkspaceService {
                 team.getCourse() != null ? team.getCourse().getName() : "",
                 teamMemberRepository.findByTeamId(team.getId()).size(),
                 team.getLeader() != null ? team.getLeader().getId() : null,
-                team.getLeader() != null ? team.getLeader().getName() : ""
+                team.getLeader() != null ? team.getLeader().getName() : "",
+                team.getInviteCode(),
+                team.getGroupTask() != null ? team.getGroupTask().getId() : null
             ))
             .toList();
+    }
+
+    public TeamRecord generateInviteCode(Long teamId, JwtPrincipal principal) {
+        TeamEntity team = teamRepository.findById(teamId).orElseThrow(() -> new ApiException("团队不存在"));
+        if (team.getLeader() == null || !team.getLeader().getId().equals(principal.userId())) {
+            throw new ApiException("只有队长可以生成邀请码");
+        }
+        String code = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        team.setInviteCode(code);
+        teamRepository.save(team);
+        return new TeamRecord(
+            team.getId(), team.getName(),
+            team.getCourse() != null ? team.getCourse().getId() : null,
+            team.getCourse() != null ? team.getCourse().getName() : "",
+            teamMemberRepository.findByTeamId(team.getId()).size(),
+            team.getLeader() != null ? team.getLeader().getId() : null,
+            team.getLeader() != null ? team.getLeader().getName() : "",
+            team.getInviteCode(),
+            team.getGroupTask() != null ? team.getGroupTask().getId() : null
+        );
+    }
+
+    public TeamRecord joinByInviteCode(String inviteCode, JwtPrincipal principal) {
+        TeamEntity team = teamRepository.findAll().stream()
+            .filter(t -> inviteCode.equals(t.getInviteCode()))
+            .findFirst()
+            .orElseThrow(() -> new ApiException("邀请码无效"));
+        if (teamMemberRepository.findByTeamIdAndUserId(team.getId(), principal.userId()).isPresent()) {
+            throw new ApiException("你已经在该团队中");
+        }
+        TeamMemberEntity member = new TeamMemberEntity();
+        member.setTeam(team);
+        member.setUser(authService.getUser(principal.userId()));
+        teamMemberRepository.save(member);
+        return new TeamRecord(
+            team.getId(), team.getName(),
+            team.getCourse() != null ? team.getCourse().getId() : null,
+            team.getCourse() != null ? team.getCourse().getName() : "",
+            teamMemberRepository.findByTeamId(team.getId()).size(),
+            team.getLeader() != null ? team.getLeader().getId() : null,
+            team.getLeader() != null ? team.getLeader().getName() : "",
+            team.getInviteCode(),
+            team.getGroupTask() != null ? team.getGroupTask().getId() : null
+        );
+    }
+
+    @Transactional
+    public TeamRecord createStandaloneTeam(TeamStandaloneCreateRequest request, JwtPrincipal principal) {
+        CourseEntity course = null;
+        if (request.courseId() != null) {
+            course = courseRepository.findById(request.courseId())
+                .orElseThrow(() -> new ApiException("课程不存在"));
+        }
+        UserEntity leader = authService.getUser(principal.userId());
+        TeamEntity team = new TeamEntity();
+        team.setName(request.name());
+        team.setCourse(course);
+        team.setLeader(leader);
+        teamRepository.save(team);
+        TeamMemberEntity member = new TeamMemberEntity();
+        member.setTeam(team);
+        member.setUser(leader);
+        teamMemberRepository.save(member);
+        if (course != null && course.getTeacher() != null) {
+            TeamMemberEntity teacherMember = new TeamMemberEntity();
+            teacherMember.setTeam(team);
+            teacherMember.setUser(course.getTeacher());
+            teamMemberRepository.save(teacherMember);
+        }
+        return new TeamRecord(
+            team.getId(), team.getName(),
+            course != null ? course.getId() : null,
+            course != null ? course.getName() : null,
+            teamMemberRepository.findByTeamId(team.getId()).size(),
+            leader.getId(), leader.getName(),
+            team.getInviteCode(),
+            null
+        );
     }
 
     public List<ProjectRecord> projects(JwtPrincipal principal) {
@@ -163,7 +242,7 @@ public class WorkspaceService {
             entity.setUser(authService.getUser(userId));
             teamMemberRepository.save(entity);
         }
-        return new TeamRecord(team.getId(), team.getName(), course.getId(), course.getName(), teamMemberRepository.findByTeamId(team.getId()).size(), leader.getId(), leader.getName());
+        return new TeamRecord(team.getId(), team.getName(), course.getId(), course.getName(), teamMemberRepository.findByTeamId(team.getId()).size(), leader.getId(), leader.getName(), team.getInviteCode(), team.getGroupTask() != null ? team.getGroupTask().getId() : null);
     }
 
     @Transactional

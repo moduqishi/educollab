@@ -1,2 +1,2 @@
 package com.educollab.model;
-public enum UserRole { STUDENT, TEACHER }
+public enum UserRole { STUDENT, TEACHER, ADMIN }

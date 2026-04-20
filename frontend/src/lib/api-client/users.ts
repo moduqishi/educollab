@@ -4,6 +4,7 @@ import type {
   TeamRecord,
   UpdateMyProfilePayload,
   UserProfile,
+  UserSettingsRecord,
 } from '../types';
 import type { RequestClient } from './base';
 
@@ -18,9 +19,17 @@ export function createUserApi(request: RequestClient) {
       return request<UserProfile>('/api/users/me/avatar', { method: 'POST', body: form });
     },
     changeMyPassword: (payload: ChangePasswordPayload) => request<void>('/api/users/me/change-password', { method: 'POST', body: JSON.stringify(payload) }),
+    getMySettings: () => request<UserSettingsRecord>('/api/users/me/settings'),
+    updateMySettings: (payload: UserSettingsRecord) => request<UserSettingsRecord>('/api/users/me/settings', { method: 'PUT', body: JSON.stringify(payload) }),
     courses: () => request<CourseRecord[]>('/api/courses'),
     teams: () => request<TeamRecord[]>('/api/teams'),
     createTeam: (payload: { name: string; courseId: number; leaderId: number; memberIds: number[] }) =>
       request<TeamRecord>('/api/teams', { method: 'POST', body: JSON.stringify(payload) }),
+    generateTeamInviteCode: (teamId: number) =>
+      request<TeamRecord>(`/api/teams/invite-code`, { method: 'POST', body: JSON.stringify({ id: teamId }) }),
+    joinTeamByCode: (inviteCode: string) =>
+      request<TeamRecord>('/api/teams/join-by-code', { method: 'POST', body: JSON.stringify({ inviteCode }) }),
+    createTeamStandalone: (payload: { name: string; courseId: number | null }) =>
+      request<TeamRecord>('/api/teams/standalone', { method: 'POST', body: JSON.stringify(payload) }),
   };
 }

@@ -54,6 +54,7 @@ export function ProjectLayout() {
     { to: `/app/projects/${id}/tasks`, label: '任务', icon: CheckSquare },
     { to: `/app/projects/${id}/discussions`, label: '讨论', icon: MessageSquare },
     { to: `/app/projects/${id}/documents`, label: '文档', icon: FileText },
+    { to: `/app/projects/${id}/messages`, label: '消息', icon: MessageSquare },
     ...(isCode ? [{ to: `/app/projects/${id}/repository/files`, label: '仓库', icon: GitBranch }] : []),
     ...(isCode ? [{ to: `/app/projects/${id}/releases`, label: '发布', icon: Package }] : []),
     { to: `/app/projects/${id}/members`, label: '成员', icon: Users },

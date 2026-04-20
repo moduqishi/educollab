@@ -281,6 +281,15 @@ public class ClassroomService {
     member.setTeam(team);
     member.setUser(team.getLeader());
     teamMemberRepository.save(member);
+
+    // 将课程老师加入团队
+    if (task.getCourse().getTeacher() != null) {
+      TeamMemberEntity teacherMember = new TeamMemberEntity();
+      teacherMember.setTeam(team);
+      teacherMember.setUser(task.getCourse().getTeacher());
+      teamMemberRepository.save(teacherMember);
+    }
+
     return recordMapper.toGroupTaskTeamRecord(team, principal);
   }
 
@@ -330,6 +339,21 @@ public class ClassroomService {
     team.setLeader(target.getUser());
     teamRepository.save(team);
     return recordMapper.toGroupTaskTeamRecord(team, principal);
+  }
+
+  @Transactional
+  public void removeGroupTaskTeamMember(Long teamId, Long userId, JwtPrincipal principal) {
+    TeamEntity team = requireGroupTaskTeam(teamId);
+    if (team.getLeader() == null || !team.getLeader().getId().equals(principal.userId())) {
+      throw new ApiException("只有队长可以移除成员");
+    }
+    if (team.getLeader().getId().equals(userId)) {
+      throw new ApiException("不能移除自己，请先转让队长");
+    }
+    TeamMemberEntity membership = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+        .orElseThrow(() -> new ApiException("该成员不在队伍中"));
+    teamMemberRepository.delete(membership);
+    cleanupEmptyTeam(team);
   }
 
   public List<GroupTaskSubTaskRecord> teamTasks(Long teamId, JwtPrincipal principal) {

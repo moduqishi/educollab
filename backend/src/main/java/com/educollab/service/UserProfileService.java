@@ -4,7 +4,9 @@ import com.educollab.common.exception.ApiException;
 import com.educollab.common.security.JwtPrincipal;
 import com.educollab.dto.AuthDtos.ChangePasswordRequest;
 import com.educollab.dto.AuthDtos.UpdateProfileRequest;
+import com.educollab.dto.AuthDtos.UpdateSettingsRequest;
 import com.educollab.dto.AuthDtos.UserProfile;
+import com.educollab.dto.AuthDtos.UserSettings;
 import com.educollab.model.UserEntity;
 import com.educollab.repo.UserRepository;
 import java.io.IOException;
@@ -12,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.ZoneOffset;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +38,7 @@ public class UserProfileService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final Path avatarRoot;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     public UserProfileService(
         UserRepository userRepository,
@@ -44,6 +48,7 @@ public class UserProfileService {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.avatarRoot = Path.of(rootDir).resolve("avatars");
+        this.objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
     }
 
     public UserProfile me(JwtPrincipal principal) {
@@ -141,8 +146,69 @@ public class UserProfileService {
             user.getName(),
             user.getEmail(),
             user.getRole(),
-            resolveAvatar(user)
+            resolveAvatar(user),
+            toSettings(user.getPreferences())
         );
+    }
+
+    public UserSettings getSettings(JwtPrincipal principal) {
+        UserEntity user = getUser(principal.userId());
+        return toSettings(user.getPreferences());
+    }
+
+    @Transactional
+    public UserSettings updateSettings(JwtPrincipal principal, UpdateSettingsRequest request) {
+        UserEntity user = getUser(principal.userId());
+        UserSettings updated = new UserSettings(
+            request.notifyInApp(), request.notifyTask(), request.notifyAssignment(),
+            request.notifyGroupTask(), request.density(), request.defaultHome(), request.timeFormat()
+        );
+        try {
+            user.setPreferences(objectMapper.writeValueAsString(Map.of(
+                "notifyInApp", updated.notifyInApp(),
+                "notifyTask", updated.notifyTask(),
+                "notifyAssignment", updated.notifyAssignment(),
+                "notifyGroupTask", updated.notifyGroupTask(),
+                "density", updated.density(),
+                "defaultHome", updated.defaultHome(),
+                "timeFormat", updated.timeFormat()
+            )));
+        } catch (Exception ex) {
+            throw new ApiException("保存设置失败");
+        }
+        userRepository.save(user);
+        return updated;
+    }
+
+    private UserSettings toSettings(String preferences) {
+        try {
+            if (preferences == null || preferences.isBlank()) return defaultSettings();
+            Map<String, Object> map = objectMapper.readValue(preferences, Map.class);
+            return new UserSettings(
+                toBoolean(map.get("notifyInApp"), true),
+                toBoolean(map.get("notifyTask"), true),
+                toBoolean(map.get("notifyAssignment"), true),
+                toBoolean(map.get("notifyGroupTask"), true),
+                strOr(map.get("density"), "comfortable"),
+                strOr(map.get("defaultHome"), "/app/dashboard"),
+                strOr(map.get("timeFormat"), "relative")
+            );
+        } catch (Exception ex) {
+            return defaultSettings();
+        }
+    }
+
+    private UserSettings defaultSettings() {
+        return new UserSettings(true, true, true, true, "comfortable", "/app/dashboard", "relative");
+    }
+
+    private Boolean toBoolean(Object val, Boolean fallback) {
+        if (val instanceof Boolean) return (Boolean) val;
+        return fallback;
+    }
+
+    private String strOr(Object val, String fallback) {
+        return val instanceof String ? (String) val : fallback;
     }
 
     private String resolveAvatar(UserEntity user) {

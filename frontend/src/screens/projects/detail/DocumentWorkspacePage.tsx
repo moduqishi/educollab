@@ -1,15 +1,16 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Cloud, CloudOff, FileText, History, Paperclip, RotateCcw, Save, Share2, Upload, Users } from 'lucide-react';
+import { ArrowLeft, Cloud, CloudOff, Download, FileText, History, MessageSquare, Paperclip, RotateCcw, Save, Send, Share2, Upload, Users } from 'lucide-react';
 import * as Y from 'yjs';
 import { HocuspocusProvider } from '@hocuspocus/provider';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
 import { setTitle } from '@/app/title';
 import { PageLoading, PageError } from '@/screens/common/States';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -84,7 +85,7 @@ export function DocumentWorkspacePage() {
     },
   });
 
-  const [activeSide, setActiveSide] = React.useState<'versions' | 'files'>('versions');
+  const [activeSide, setActiveSide] = React.useState<'versions' | 'files' | 'chat'>('versions');
   const [showSide, setShowSide] = React.useState(true);
 
   // --- Realtime doc state (Yjs as source-of-truth) ---
@@ -276,6 +277,9 @@ export function DocumentWorkspacePage() {
               <Button variant={activeSide === 'files' ? 'default' : 'outline'} size="sm" className="gap-2" onClick={() => setActiveSide('files')}>
                 <Paperclip size={14} /> 附件
               </Button>
+              <Button variant={activeSide === 'chat' ? 'default' : 'outline'} size="sm" className="gap-2" onClick={() => setActiveSide('chat')}>
+                <MessageSquare size={14} /> 群聊
+              </Button>
               <Button variant={activeSide === 'versions' ? 'default' : 'outline'} size="sm" className="gap-2" onClick={() => setActiveSide('versions')}>
                 <History size={14} /> 版本
               </Button>
@@ -326,7 +330,7 @@ export function DocumentWorkspacePage() {
             {showSide ? (
               <div className="border-l bg-white flex flex-col">
                 <div className="p-4 border-b flex items-center justify-between">
-                  <div className="text-sm font-semibold">{activeSide === 'versions' ? '版本管理' : '附件'}</div>
+                  <div className="text-sm font-semibold">{activeSide === 'versions' ? '版本管理' : activeSide === 'chat' ? '项目群聊' : '附件'}</div>
                   <Button variant="ghost" size="sm" onClick={() => setShowSide(false)}>
                     收起
                   </Button>
@@ -376,6 +380,8 @@ export function DocumentWorkspacePage() {
                           {!versions.length ? <div className="text-sm text-muted-foreground">还没有版本。你可以在里程碑节点保存一个快照。</div> : null}
                         </div>
                       </>
+                    ) : activeSide === 'chat' ? (
+                      <ProjectChatSidebar projectId={pid} />
                     ) : (
                       <>
                         <UploadFileButton uploading={uploadM.isPending} onUpload={(f) => uploadM.mutateAsync(f)} />
@@ -400,11 +406,15 @@ export function DocumentWorkspacePage() {
                       </>
                     )}
 
-                    <Separator />
-                    <div className="text-[11px] text-muted-foreground space-y-1">
-                      <div>保存策略：停止输入约 1 秒后自动保存；关键节点可手动保存版本。</div>
-                      <div>提示：如果断网，编辑不会丢失；连接恢复后会自动同步。</div>
-                    </div>
+                    {activeSide !== 'chat' && (
+                      <>
+                        <Separator />
+                        <div className="text-[11px] text-muted-foreground space-y-1">
+                          <div>保存策略：停止输入约 1 秒后自动保存；关键节点可手动保存版本。</div>
+                          <div>提示：如果断网，编辑不会丢失；连接恢复后会自动同步。</div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </ScrollArea>
               </div>
@@ -556,6 +566,239 @@ function RenameDocButton({ currentTitle, onRename }: { currentTitle: string; onR
             保存
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProjectChatSidebar({ projectId }: { projectId: number }) {
+  const api = useApi();
+  const { session } = useAuth();
+  const qc = useQueryClient();
+
+  const roomQ = useQuery({
+    queryKey: ['chatProjectRoom', projectId],
+    queryFn: () => api.getChatProjectRoom(projectId),
+  });
+
+  const messagesQ = useQuery({
+    queryKey: ['chatMessages', roomQ.data?.id],
+    enabled: !!roomQ.data?.id,
+    queryFn: () => api.chatMessages(roomQ.data!.id),
+  });
+
+  const sendM = useMutation({
+    mutationFn: (payload: { content?: string; fileAssetId?: number; fileName?: string; fileSizeBytes?: number; mimeType?: string }) =>
+      api.sendChatMessage(roomQ.data!.id, payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['chatMessages', roomQ.data?.id] });
+    },
+  });
+
+  const uploadM = useMutation({
+    mutationFn: async (file: File) => {
+      const roomId = roomQ.data!.id;
+      const fileRecord = await api.uploadFile('CHAT_MESSAGE', roomId, file);
+      await api.sendChatMessage(roomId, {
+        fileAssetId: fileRecord.id,
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        mimeType: file.type,
+      });
+      await qc.invalidateQueries({ queryKey: ['chatMessages', roomId] });
+    },
+  });
+
+  const [text, setText] = React.useState('');
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
+  const bottomRef = React.useRef<HTMLDivElement | null>(null);
+  const [previewFile, setPreviewFile] = React.useState<{ fileAssetId: number; fileName: string; mimeType: string } | null>(null);
+
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messagesQ.data]);
+
+  if (roomQ.isLoading) return <div className="p-4 text-sm text-muted-foreground">正在加载群聊...</div>;
+
+  const messages = ((messagesQ.data || []) as any[]).slice().reverse();
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="border-b p-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare size={14} className="text-primary" />
+          <span className="text-sm font-semibold">{roomQ.data?.name || '项目群聊'}</span>
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">{roomQ.data?.memberCount || 0} 人</div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="flex flex-col gap-3 p-3">
+          {!messagesQ.isLoading && !messages.length ? (
+            <div className="text-center text-xs text-muted-foreground py-8">暂无消息</div>
+          ) : (
+            messages.map((msg) => (
+              <div key={msg.id} className={cn('flex gap-2', msg.authorId === session?.profile.id && 'flex-row-reverse')}>
+                <Avatar className="h-7 w-7 shrink-0">
+                  <AvatarImage src={msg.authorAvatar || undefined} />
+                  <AvatarFallback className="text-[10px]">{msg.authorName?.slice(0, 1) || 'U'}</AvatarFallback>
+                </Avatar>
+                <div className={cn('max-w-[75%]', msg.authorId === session?.profile.id && 'items-end')}>
+                  <div className="mb-0.5 flex items-center gap-1.5">
+                    <span className="text-[10px] font-semibold">{msg.authorName}</span>
+                    <span className="text-[9px] text-muted-foreground">{msg.createdAt}</span>
+                  </div>
+                  {msg.content && (
+                    <div className={cn('rounded-xl px-3 py-2 text-xs', msg.authorId === session?.profile.id ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                      {msg.content}
+                    </div>
+                  )}
+                  {msg.fileAssetId && (() => {
+                    const isImage = msg.mimeType?.startsWith('image/');
+                    return (
+                      <div className={cn('mt-1 rounded-xl overflow-hidden', msg.authorId === session?.profile.id ? 'bg-primary/90' : 'bg-muted')}>
+                        {isImage ? (
+                          <>
+                            <img
+                              src={api.downloadFileUrl(msg.fileAssetId)}
+                              alt={msg.fileName}
+                              className="max-w-40 max-h-40 object-contain cursor-pointer"
+                              onClick={() => setPreviewFile({ fileAssetId: msg.fileAssetId, fileName: msg.fileName || '图片', mimeType: msg.mimeType || 'image/*' })}
+                            />
+                            <div className="flex items-center justify-end px-2 py-1 gap-1">
+                              <Button size="sm" variant="ghost" className="h-5 px-1.5 text-[9px]" onClick={() => window.open(api.downloadFileUrl(msg.fileAssetId), '_blank')}>
+                                <Download size={9} />下载
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex items-center gap-2 p-2">
+                            <Paperclip size={12} className={msg.authorId === session?.profile.id ? 'text-primary-foreground/70' : 'text-muted-foreground'} />
+                            <span className="text-xs flex-1 truncate">{msg.fileName}</span>
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={() => window.open(api.downloadFileUrl(msg.fileAssetId), '_blank')}>
+                              <Download size={10} className="mr-0.5" />下载
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            ))
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </ScrollArea>
+
+      <div className="border-t p-3">
+        <div className="flex items-end gap-2">
+          <input ref={fileRef} type="file" className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file || !roomQ.data?.id) return;
+              await uploadM.mutateAsync(file);
+              if (fileRef.current) fileRef.current.value = '';
+            }} />
+          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileRef.current?.click()} disabled={uploadM.isPending || !roomQ.data?.id}>
+            <Paperclip size={14} />
+          </Button>
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && roomQ.data?.id) {
+                e.preventDefault();
+                if (!text.trim()) return;
+                sendM.mutate({ content: text.trim() });
+                setText('');
+              }
+            }}
+            placeholder="发送消息..."
+            className="flex-1 h-9 rounded-xl border border-muted bg-muted/20 px-3 text-xs outline-none focus:border-primary"
+          />
+          <Button size="icon" className="h-9 w-9 shrink-0" disabled={!text.trim() || sendM.isPending || !roomQ.data?.id} onClick={() => {
+            if (!text.trim() || !roomQ.data?.id) return;
+            sendM.mutate({ content: text.trim() });
+            setText('');
+          }}>
+            <Send size={14} />
+          </Button>
+        </div>
+      </div>
+
+      {previewFile && (
+        <ChatFilePreviewDialog
+          fileAssetId={previewFile.fileAssetId}
+          fileName={previewFile.fileName}
+          mimeType={previewFile.mimeType}
+          api={api}
+          onClose={() => setPreviewFile(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+type ChatFilePreviewDialogProps = {
+  fileAssetId: number;
+  fileName: string;
+  mimeType: string;
+  api: ReturnType<typeof useApi>;
+  onClose: () => void;
+};
+
+function ChatFilePreviewDialog({ fileAssetId, fileName, mimeType, api, onClose }: ChatFilePreviewDialogProps) {
+  const isImage = mimeType.startsWith('image/');
+  const fileUrl = api.downloadFileUrl(fileAssetId);
+
+  const [imgSize, setImgSize] = React.useState<{ w: number; h: number } | null>(null);
+
+  React.useEffect(() => {
+    if (!isImage) return;
+    const img = new Image();
+    img.onload = () => {
+      const maxW = Math.min(img.naturalWidth, window.innerWidth * 0.85);
+      const maxH = Math.min(img.naturalHeight, window.innerHeight * 0.85);
+      const scale = Math.min(1, maxW / img.naturalWidth, maxH / img.naturalHeight);
+      setImgSize({ w: Math.round(img.naturalWidth * scale), h: Math.round(img.naturalHeight * scale) });
+    };
+    img.src = fileUrl;
+  }, [isImage, fileUrl]);
+
+  const dlgStyle: React.CSSProperties = isImage && imgSize
+    ? { width: imgSize.w + 48, height: imgSize.h + 64, maxWidth: '95vw', maxHeight: '90vh' }
+    : { width: 'auto', height: 'auto', maxWidth: '90vw', maxHeight: '85vh' };
+
+  return (
+    <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent showCloseButton={false} className="!p-0 !gap-0" style={dlgStyle}>
+        <div className="flex items-center justify-between px-4 py-3 shrink-0 border-b bg-white">
+          <div className="text-sm font-medium truncate">{fileName}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" variant="outline" onClick={() => window.open(fileUrl, '_blank')}>
+              <Download size={14} className="mr-1" />下载
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onClose}>关闭</Button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-hidden bg-[#f5f5f5]" style={{ height: isImage && imgSize ? imgSize.h : undefined }}>
+          {isImage ? (
+            <div className="w-full h-full flex items-center justify-center overflow-hidden">
+              <img src={fileUrl} alt={fileName} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+            </div>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <Paperclip size={48} className="mx-auto mb-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-4">此文件类型暂不支持预览</p>
+                <Button onClick={() => window.open(fileUrl, '_blank')}>
+                  <Download size={14} className="mr-2" />下载文件
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

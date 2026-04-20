@@ -4,6 +4,9 @@ import com.educollab.model.AssignmentEntity;
 import com.educollab.model.ClassMemberEntity;
 import com.educollab.model.ClassMemberRole;
 import com.educollab.model.CourseEntity;
+import com.educollab.model.NotificationEntity;
+import com.educollab.model.NotificationSourceType;
+import com.educollab.model.NotificationType;
 import com.educollab.model.ProjectEntity;
 import com.educollab.model.ProjectMemberEntity;
 import com.educollab.model.ProjectStatus;
@@ -20,6 +23,7 @@ import com.educollab.model.UserRole;
 import com.educollab.repo.AssignmentRepository;
 import com.educollab.repo.ClassMemberRepository;
 import com.educollab.repo.CourseRepository;
+import com.educollab.repo.NotificationRepository;
 import com.educollab.repo.ProjectMemberRepository;
 import com.educollab.repo.ProjectRepository;
 import com.educollab.repo.TaskRepository;
@@ -45,6 +49,7 @@ public class DataInitializer implements CommandLineRunner {
     private final TaskRepository taskRepository;
     private final AssignmentRepository assignmentRepository;
     private final TeacherFeedbackRepository teacherFeedbackRepository;
+    private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final GitService gitService;
 
@@ -59,6 +64,7 @@ public class DataInitializer implements CommandLineRunner {
         TaskRepository taskRepository,
         AssignmentRepository assignmentRepository,
         TeacherFeedbackRepository teacherFeedbackRepository,
+        NotificationRepository notificationRepository,
         PasswordEncoder passwordEncoder,
         GitService gitService
     ) {
@@ -72,12 +78,14 @@ public class DataInitializer implements CommandLineRunner {
         this.taskRepository = taskRepository;
         this.assignmentRepository = assignmentRepository;
         this.teacherFeedbackRepository = teacherFeedbackRepository;
+        this.notificationRepository = notificationRepository;
         this.passwordEncoder = passwordEncoder;
         this.gitService = gitService;
     }
 
     @Override
     public void run(String... args) {
+        UserEntity admin = ensureUser("系统管理员", "admin@educollab.local", UserRole.ADMIN, "admin");
         UserEntity teacher = ensureUser("王老师", "teacher@educollab.local", UserRole.TEACHER, "teacher");
         UserEntity xulaoliu = ensureUser("xulaoliu", "xulaoliu@educollab.local", UserRole.STUDENT, "xulaoliu");
         UserEntity alex = ensureUser("Alex Rivera", "alex@educollab.local", UserRole.STUDENT, "alex");
@@ -135,9 +143,49 @@ public class DataInitializer implements CommandLineRunner {
         ensureAssignment(course, aiProject);
         ensureFeedback(aiProject, teacher);
 
+        // 创建通知
+        TaskEntity task1 = taskRepository.findByProjectId(aiProject.getId()).stream()
+            .filter(t -> t.getTitle().contains("成员邀请")).findFirst().orElse(null);
+        if (task1 != null) {
+            ensureNotification(xulaoliu, "任务即将截止",
+                "任务【负责成员邀请与权限治理】将于明天截止，请及时完成。",
+                NotificationType.TASK, NotificationSourceType.TASK, task1.getId(), "/app/projects/" + aiProject.getId() + "/tasks", "AI Research Assistant");
+        }
+
+        TaskEntity task2 = taskRepository.findByProjectId(campusProject.getId()).stream()
+            .filter(t -> t.getStatus() == TaskStatus.TODO).findFirst().orElse(null);
+        if (task2 != null) {
+            ensureNotification(liam, "新任务已分配",
+                "你被分配了新任务【" + task2.getTitle() + "】，请前往项目查看。",
+                NotificationType.TASK, NotificationSourceType.TASK, task2.getId(), "/app/projects/" + campusProject.getId() + "/tasks", "Sustainable Campus Initiative");
+        }
+
+        ensureNotification(xulaoliu, "作业已发布",
+            "新课程作业【阶段演示包】已发布，请于截止日期前提交。",
+            NotificationType.SYSTEM, NotificationSourceType.ASSIGNMENT, null, "/app/classes/" + course.getId() + "/assignments", "软件工程");
+
+        ensureNotification(alex, "作业已发布",
+            "新课程作业【阶段演示包】已发布，请于截止日期前提交。",
+            NotificationType.SYSTEM, NotificationSourceType.ASSIGNMENT, null, "/app/classes/" + course.getId() + "/assignments", "软件工程");
+
         if (aiProject.getType() == ProjectType.CODE) {
             gitService.ensureRepository(aiProject);
         }
+    }
+
+    private void ensureNotification(UserEntity user, String title, String content,
+            NotificationType type, NotificationSourceType sourceType, Long sourceId, String sourcePath, String sourceLabel) {
+        NotificationEntity n = new NotificationEntity();
+        n.setUser(user);
+        n.setTitle(title);
+        n.setContent(content);
+        n.setType(type);
+        n.setSourceType(sourceType);
+        n.setSourceId(sourceId);
+        n.setSourcePath(sourcePath);
+        n.setSourceLabel(sourceLabel);
+        n.setRead(false);
+        notificationRepository.save(n);
     }
 
     private UserEntity ensureUser(String name, String email, UserRole role, String seed) {

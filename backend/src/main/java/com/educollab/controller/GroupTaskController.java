@@ -49,4 +49,9 @@ public class GroupTaskController {
   public ProjectRecord createProject(@PathVariable Long id, @RequestBody ProjectSaveRequest request) {
     return classroomService.createProjectForTeam(id, request, SecurityUtils.principal());
   }
+
+  @DeleteMapping("/api/group-task-teams/{teamId}/members/{userId}")
+  public void removeMember(@PathVariable Long teamId, @PathVariable Long userId) {
+    classroomService.removeGroupTaskTeamMember(teamId, userId, SecurityUtils.principal());
+  }
 }

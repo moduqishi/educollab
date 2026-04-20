@@ -1,7 +1,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GroupTaskDialog } from '@/screens/classes/ClassDialogs';
 import type { ClassDetail, GroupTaskRecord } from '@/lib/types';
 
@@ -89,86 +92,92 @@ function GroupTaskCard({
 
   return (
     <div className="space-y-4 rounded-2xl border p-4">
-      <div>
-        <div className="font-medium">{task.title}</div>
-        <div className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-          {task.description || '暂无说明'}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold text-base">{task.title}</div>
+          <div className="mt-1.5 text-xs text-muted-foreground">
+            {task.description || '暂无说明'}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <span>人数：{task.minMembers || 1} - {task.maxMembers || '不限'}</span>
+            {task.dueDate && <span>截止：{task.dueDate}</span>}
+          </div>
         </div>
-        <div className="mt-2 text-xs text-muted-foreground">
-          人数限制：{task.minMembers || 1} - {task.maxMembers || '不限'} · 截止时间：
-          {task.dueDate || '未设置'}
-        </div>
-      </div>
-
-      {!isTeacher && !myTeam ? (
-        <CreateTeamInline onSubmit={(name) => onCreateTeam(task.id, name)} />
-      ) : null}
-
-      <div className="space-y-3">
-        {!task.teams.length ? (
-          <div className="text-sm text-muted-foreground">暂无队伍，学生可以自由创建。</div>
-        ) : (
-          task.teams.map((team) => (
-            <div key={team.id} className="space-y-3 rounded-2xl border p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="font-medium">{team.name}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    队长：{team.leaderName || '未设置'} · {team.memberCount} 人
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {team.canJoin ? (
-                    <Button size="sm" onClick={() => onJoinTeam(team.id)}>
-                      加入
-                    </Button>
-                  ) : null}
-                  {team.canLeave ? (
-                    <Button size="sm" variant="outline" onClick={() => onLeaveTeam(team.id)}>
-                      退出
-                    </Button>
-                  ) : null}
-                  <Button size="sm" variant="outline" onClick={() => onOpenTeam(team.id)}>
-                    进入团队
-                  </Button>
-                </div>
-              </div>
-
-              {team.canTransfer ? (
-                <TransferLeaderInline
-                  members={detail.members.filter((member) => member.classRole === 'STUDENT')}
-                  onSubmit={(leaderUserId) => onTransferLeader(team.id, leaderUserId)}
-                />
-              ) : null}
-            </div>
-          ))
+        {!isTeacher && !myTeam && (
+          <CreateTeamDialog onSubmit={(name) => onCreateTeam(task.id, name)} />
         )}
       </div>
+
+      {!task.teams.length ? (
+        <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+          <span>暂无队伍，</span>
+          {!isTeacher && !myTeam ? (
+            <span className="text-primary">可点击右上角「创建团队」组建队伍</span>
+          ) : <span>等待学生创建或加入</span>}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {task.teams.map((team) => (
+            <div key={team.id} className="flex items-center justify-between rounded-xl border p-3 gap-3">
+              <div className="min-w-0">
+                <div className="font-medium text-sm truncate">{team.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  队长：{team.leaderName || '未设置'} · {team.memberCount} 人
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                {team.canLeave && (
+                  <Button size="sm" variant="outline" onClick={() => onLeaveTeam(team.id)} className="text-xs h-7">
+                    退出
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => onOpenTeam(team.id)} className="text-xs h-7">
+                  进入
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function CreateTeamInline({ onSubmit }: { onSubmit: (name: string) => Promise<unknown> }) {
+function CreateTeamDialog({ onSubmit }: { onSubmit: (name: string) => Promise<unknown> }) {
+  const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState('');
   return (
-    <div className="space-y-3 rounded-2xl border border-dashed p-4">
-      <div className="text-sm font-medium">创建队伍</div>
-      <Input
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-        placeholder="输入队伍名称，创建后你将成为队长"
-      />
-      <Button
-        size="sm"
-        onClick={async () => {
-          await onSubmit(name.trim());
-          setName('');
-        }}
-        disabled={!name.trim()}
-      >
-        创建队伍
-      </Button>
-    </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button size="sm">创建团队</Button>} />
+      <DialogContent>
+        <DialogHeader><DialogTitle>创建团队</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="space-y-2">
+            <Label>队伍名称</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="输入队伍名称，创建后你将成为队长"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
+          <Button
+            onClick={async () => {
+              if (name.trim()) {
+                await onSubmit(name.trim());
+                setName('');
+                setOpen(false);
+              }
+            }}
+            disabled={!name.trim()}
+          >
+            创建
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -179,22 +188,18 @@ function TransferLeaderInline({
   members: ClassDetail['members'];
   onSubmit: (leaderUserId: number) => Promise<unknown>;
 }) {
-  const [leaderUserId, setLeaderUserId] = React.useState('');
+  const [leaderUserId, setLeaderUserId] = React.useState<string>('');
   return (
     <div className="space-y-2 rounded-xl bg-muted/20 p-3">
       <div className="text-sm font-medium">转让队长</div>
-      <select
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        value={leaderUserId}
-        onChange={(event) => setLeaderUserId(event.target.value)}
-      >
-        <option value="">请选择成员</option>
-        {members.map((member) => (
-          <option key={member.userId} value={member.userId}>
-            {member.name}
-          </option>
-        ))}
-      </select>
+      <Select value={leaderUserId} onValueChange={(v) => setLeaderUserId(v)}>
+        <SelectTrigger className="w-full"><SelectValue placeholder="请选择成员" /></SelectTrigger>
+        <SelectContent>
+          {members.map((member) => (
+            <SelectItem key={member.userId} value={String(member.userId)}>{member.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Button
         size="sm"
         variant="outline"

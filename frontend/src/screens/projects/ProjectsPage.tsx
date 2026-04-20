@@ -1,43 +1,67 @@
 import React from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FolderKanban, Plus, ArrowRight } from 'lucide-react';
+import { FolderKanban, Plus, ArrowRight, Search, X } from 'lucide-react';
 import { PageHero } from '@/screens/shell/PageHero';
 import { useApi } from '@/app/api';
 import { setTitle } from '@/app/title';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 export function ProjectsPage() {
   const api = useApi();
   const nav = useNavigate();
   const [params] = useSearchParams();
+  const [keyword, setKeyword] = React.useState(params.get('q') || '');
 
   React.useEffect(() => setTitle(['项目']), []);
 
   const q = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() });
-  const keyword = params.get('q')?.trim().toLowerCase() || '';
+  const statusFilter = params.get('status');
   const projects = (q.data || []).filter((project) => {
-    if (!keyword) return true;
-    return project.name.toLowerCase().includes(keyword);
+    if (!keyword.trim() && !statusFilter) return true;
+    if (keyword.trim() && !project.name.toLowerCase().includes(keyword.trim().toLowerCase())) return false;
+    if (statusFilter && project.status !== statusFilter) return false;
+    return true;
   });
 
   return (
     <div>
       <PageHero
-        title="项目"
-        subtitle="进入项目工作区，统一管理任务、讨论、文档与代码仓库。"
+        title={statusFilter === 'ACTIVE' ? '活跃项目' : statusFilter === 'COMPLETED' ? '已完成项目' : '项目'}
+        subtitle={statusFilter ? '筛选后的项目列表。' : '进入项目工作区，统一管理任务、讨论、文档与代码仓库。'}
         actions={
-          <Button className="gap-2" onClick={() => nav('/app/classes')}>
-            <Plus size={14} /> 从课程团队创建项目
-          </Button>
-        }
-        right={
-          <div className="hidden items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm md:flex">
-            <FolderKanban size={16} className="text-primary" />
-            <div className="text-xs text-muted-foreground">顶部搜索只会按项目名称检索，不再匹配描述内容。</div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* 搜索栏 */}
+            <div className="relative w-72">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索项目名称..."
+                value={keyword}
+                onChange={e => setKeyword(e.target.value)}
+                className="pl-9 pr-9 h-9"
+              />
+              {keyword && (
+                <button
+                  onClick={() => setKeyword('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            {statusFilter && (
+              <Badge variant="outline" className="border-primary/15 bg-primary/5 text-primary">
+                状态筛选：{statusFilter === 'ACTIVE' ? '进行中' : statusFilter === 'COMPLETED' ? '已完成' : statusFilter}
+              </Badge>
+            )}
+            <span className="text-sm text-muted-foreground">{projects.length} 个项目</span>
+            <Button className="gap-2 ml-auto" onClick={() => nav('/app/classes')}>
+              <Plus size={14} /> 从课程团队创建项目
+            </Button>
           </div>
         }
       />
@@ -79,7 +103,7 @@ export function ProjectsPage() {
             {!q.isLoading && !projects.length ? (
               <Card className="md:col-span-2 xl:col-span-3">
                 <CardContent className="p-10 text-center text-muted-foreground">
-                  {keyword ? '没有找到项目名称匹配的结果，请换个项目名关键词试试。' : '还没有项目。请先在课程的组队任务中创建队伍，再由队长创建项目工作区。'}
+                  {keyword.trim() ? '没有找到项目名称匹配的结果，请换个关键词试试。' : '还没有项目。请先在课程的组队任务中创建队伍，再由队长创建项目工作区。'}
                 </CardContent>
               </Card>
             ) : null}

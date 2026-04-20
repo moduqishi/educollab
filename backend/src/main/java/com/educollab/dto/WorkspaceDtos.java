@@ -1,7 +1,11 @@
 package com.educollab.dto;
 import java.util.List;
 public class WorkspaceDtos {
-  public record TeamRecord(Long id, String name, Long courseId, String courseName, int memberCount, Long leaderId, String leaderName) {}
+  public record TeamRecord(Long id, String name, Long courseId, String courseName, int memberCount, Long leaderId, String leaderName, String inviteCode, Long groupTaskId) {}
+  public record TeamJoinByCodeRequest(String inviteCode) {}
+  public record TeamStandaloneCreateRequest(String name, Long courseId) {}
+  public record TeamMemberRecord(Long userId, String name, String email, String avatar, boolean leader) {}
+  public record IdRequest(Long id) {}
   public record CourseRecord(Long id, String name, String teacherName) {}
   public record ClassMemberRecord(Long id, Long userId, String name, String email, String userRole, String classRole, String joinedVia, String avatar) {}
   public record ClassInvitationRecord(Long id, Long classId, String className, Long invitedUserId, String invitedUserName, String invitedUserEmail, String invitedByName, String status, String createdAt) {}
@@ -131,6 +135,12 @@ public class WorkspaceDtos {
   public record MergeRequestSaveRequest(Long projectId, String title, String sourceBranch, String targetBranch) {}
   public record ReleaseSaveRequest(Long projectId, String version, String title, String description) {}
   public record BranchCreateRequest(Long projectId, String name) {}
+
+  // --- Chat ---
+  public record ChatRoomRecord(Long id, String roomType, Long projectId, String projectName, Long courseId, String courseName, String name, int memberCount, long messageCount, String lastMessage, String lastMessageAt) {}
+  public record ChatMessageRecord(Long id, Long roomId, Long authorId, String authorName, String authorAvatar, String content, Long fileAssetId, String fileName, Long fileSizeBytes, String mimeType, String createdAt) {}
+  public record ChatMessageSendRequest(Long roomId, String content, Long fileAssetId, String fileName, Long fileSizeBytes, String mimeType) {}
+  public record ChatRoomCreateRequest(String roomType, Long projectId, Long courseId) {}
 
   // --- Git clone & access tokens ---
   public record GitCloneInfo(String slug, String httpUrl, String defaultBranch) {}

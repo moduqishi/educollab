@@ -1,5 +1,5 @@
-﻿import React from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import React from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, LayoutGrid, LockKeyhole, LogOut, MonitorCog, Settings as SettingsIcon } from 'lucide-react';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
@@ -18,39 +18,30 @@ import { API_BASE, COLLAB_BASE } from '@/lib/mappers';
 import type { UserSettingsRecord } from '@/lib/types';
 
 const SETTINGS_KEY = 'educollab.user-settings';
-const defaultSettings: UserSettingsRecord = {
-  notifyInApp: true,
-  notifyTask: true,
-  notifyAssignment: true,
-  notifyGroupTask: true,
-  density: 'comfortable',
-  defaultHome: '/app/dashboard',
-  timeFormat: 'relative',
-};
 
-function readSettings(role?: 'STUDENT' | 'TEACHER'): UserSettingsRecord {
+function defaultSettings(role?: 'STUDENT' | 'TEACHER' | 'ADMIN'): UserSettingsRecord {
+  const home = role === 'ADMIN' ? '/app/admin' : role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard';
+  return { notifyInApp: true, notifyTask: true, notifyAssignment: true, notifyGroupTask: true, density: 'comfortable', defaultHome: home, timeFormat: 'relative' };
+}
+
+function localSettings(role?: 'STUDENT' | 'TEACHER' | 'ADMIN'): UserSettingsRecord {
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Partial<UserSettingsRecord>) : {};
-    return { ...defaultSettings, defaultHome: role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard', ...parsed };
+    if (!raw) return defaultSettings(role);
+    return { ...defaultSettings(role), ...JSON.parse(raw) };
   } catch {
-    return { ...defaultSettings, defaultHome: role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard' };
+    return defaultSettings(role);
   }
 }
 
 export function SettingsPage() {
   const api = useApi();
-  const { session, logout, setSession, token } = useAuth();
-  const [settings, setSettings] = React.useState<UserSettingsRecord>(() => readSettings(session?.profile.role));
+  const { session, logout, token } = useAuth();
+  const queryClient = useQueryClient();
   const [currentPassword, setCurrentPassword] = React.useState('');
   const [newPassword, setNewPassword] = React.useState('');
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => setTitle(['\u8bbe\u7f6e\u4e2d\u5fc3']), []);
-  React.useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }, [settings]);
 
   const profileQuery = useQuery({
     queryKey: ['user-settings-profile', token],
@@ -58,11 +49,43 @@ export function SettingsPage() {
     queryFn: () => api.userMe(),
   });
 
-  React.useEffect(() => {
-    if (profileQuery.data && session) setSession({ ...session, profile: profileQuery.data });
-  }, [profileQuery.data, session, setSession]);
-
   const profile = profileQuery.data || session?.profile || null;
+
+  const [settings, setSettings] = React.useState<UserSettingsRecord | null>(null);
+
+  React.useEffect(() => {
+    if (!profileQuery.data) return;
+    const server = profileQuery.data.settings;
+    const local = localSettings(profileQuery.data.role);
+    const merged = server && server.notifyInApp !== undefined ? server : local;
+    setSettings(merged);
+  }, [profileQuery.data]);
+
+  React.useEffect(() => { setTitle(['\u8bbe\u7f6e\u4e2d\u5fc3']); }, []);
+
+  const settingsMutation = useMutation({
+    mutationFn: (s: UserSettingsRecord) => api.updateMySettings(s),
+    onSuccess: (updated) => {
+      setSettings(updated);
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+      queryClient.setQueryData(['user-settings-profile', token], (old: unknown) => {
+        if (!old || !(old as { profile?: { settings?: UserSettingsRecord } }).profile) return old;
+        return { ...old, profile: { ...((old as { profile: { settings?: UserSettingsRecord } }).profile), settings: updated } };
+      });
+    },
+    onError: (err: Error) => setError(err.message || '\u8bbe\u7f6e\u4fdd\u5b58\u5931\u8d25'),
+  });
+
+  function updateSetting(patch: Partial<UserSettingsRecord>) {
+    if (!settings) return;
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    setError(null);
+    settingsMutation.mutate(next, {
+      onError: (err) => setError('\u8bbe\u7f6e\u4fdd\u5b58\u5931\u8d25\uff1a' + (err.message || '\u540e\u7aef\u63a5\u53e3\u53ef\u80fd\u672a\u5df2\u91cd\u542f')),
+    });
+  }
 
   const passwordMutation = useMutation({
     mutationFn: () => api.changeMyPassword({ currentPassword, newPassword }),
@@ -73,18 +96,20 @@ export function SettingsPage() {
       setNewPassword('');
     },
     onError: (err: Error) => {
-      setError(err.message || '\u5bc6\u7801\u4fee\u6539\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');
+      setError(err.message || '\u5bc6\u7801\u4fee\u6539\u5931\u8d25\uffc1\u8bf7\u7a0d\u540e\u91cd\u8bd5');
       setMessage(null);
     },
   });
 
   if (profileQuery.isLoading && !profile) return <PageLoading label={'\u6b63\u5728\u52a0\u8f7d\u8bbe\u7f6e...'} />;
   if (!profile) return <PageError title={'\u8bbe\u7f6e\u52a0\u8f7d\u5931\u8d25'} onRetry={() => profileQuery.refetch()} />;
-  const roleLabel = profile.role === 'TEACHER' ? '\u6559\u5e08' : '\u5b66\u751f';
+  if (!settings) return <PageLoading label={'\u6b63\u5728\u52a0\u8f7d\u8bbe\u7f6e...'} />;
+  const roleLabel = profile.role === 'ADMIN' ? '\u7ba1\u7406\u5458' : profile.role === 'TEACHER' ? '\u6559\u5e08' : '\u5b66\u751f';
 
   return (
     <div>
       <PageHero title={'\u8bbe\u7f6e\u4e2d\u5fc3'} subtitle={'\u96c6\u4e2d\u7ba1\u7406\u8d26\u6237\u3001\u5b89\u5168\u3001\u901a\u77e5\u548c\u754c\u9762\u504f\u597d\u3002'} />
+      {error ? <div className="mx-8 mt-4 rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">{error} <button className="underline ml-2" onClick={() => setError(null)}>✕</button></div> : null}
       <div className="px-8 pb-10">
         <div className="mx-auto max-w-[1200px]">
           <Tabs defaultValue="account" className="gap-6">
@@ -127,10 +152,10 @@ export function SettingsPage() {
                   <CardTitle className="flex items-center gap-2 text-base"><Bell size={16} />{'\u901a\u77e5\u8bbe\u7f6e'}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <SettingCheckbox label={'\u7ad9\u5185\u901a\u77e5'} description={'\u63a5\u6536\u7cfb\u7edf\u6d88\u606f\u548c\u72b6\u6001\u66f4\u65b0\u3002'} checked={settings.notifyInApp} onCheckedChange={(checked) => setSettings((current) => ({ ...current, notifyInApp: checked }))} />
-                  <SettingCheckbox label={'\u4efb\u52a1\u63d0\u9192'} description={'\u961f\u5185\u4efb\u52a1\u5206\u914d\u548c\u622a\u6b62\u53d8\u66f4\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyTask} onCheckedChange={(checked) => setSettings((current) => ({ ...current, notifyTask: checked }))} />
-                  <SettingCheckbox label={'\u4f5c\u4e1a\u63d0\u9192'} description={'\u73ed\u7ea7\u4f5c\u4e1a\u65b0\u589e\u6216\u5373\u5c06\u622a\u6b62\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyAssignment} onCheckedChange={(checked) => setSettings((current) => ({ ...current, notifyAssignment: checked }))} />
-                  <SettingCheckbox label={'\u7ec4\u961f\u63d0\u9192'} description={'\u7ec4\u961f\u4efb\u52a1\u53d1\u5e03\u3001\u961f\u4f0d\u53d8\u5316\u548c\u9080\u8bf7\u786e\u8ba4\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyGroupTask} onCheckedChange={(checked) => setSettings((current) => ({ ...current, notifyGroupTask: checked }))} />
+                  <SettingCheckbox label={'\u7ad9\u5185\u901a\u77e5'} description={'\u63a5\u6536\u7cfb\u7edf\u6d88\u606f\u548c\u72b6\u6001\u66f4\u65b0\u3002'} checked={settings.notifyInApp} onCheckedChange={(checked) => updateSetting({ notifyInApp: checked })} />
+                  <SettingCheckbox label={'\u4efb\u52a1\u63d0\u9192'} description={'\u961f\u5185\u4efb\u52a1\u5206\u914d\u548c\u622a\u6b62\u53d8\u66f4\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyTask} onCheckedChange={(checked) => updateSetting({ notifyTask: checked })} />
+                  <SettingCheckbox label={'\u4f5c\u4e1a\u63d0\u9192'} description={'\u73ed\u7ea7\u4f5c\u4e1a\u65b0\u589e\u6216\u5373\u5c06\u622a\u6b62\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyAssignment} onCheckedChange={(checked) => updateSetting({ notifyAssignment: checked })} />
+                  <SettingCheckbox label={'\u7ec4\u961f\u63d0\u9192'} description={'\u7ec4\u961f\u4efb\u52a1\u53d1\u5e03\u3001\u961f\u4f0d\u53d8\u5316\u548c\u9080\u8bf7\u786e\u8ba4\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyGroupTask} onCheckedChange={(checked) => updateSetting({ notifyGroupTask: checked })} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -141,9 +166,9 @@ export function SettingsPage() {
                   <CardTitle className="flex items-center gap-2 text-base"><LayoutGrid size={16} />{'\u754c\u9762\u504f\u597d'}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <PreferenceGroup title={'\u5217\u8868\u5bc6\u5ea6'} options={[{ label: '\u8212\u9002', value: 'comfortable' }, { label: '\u7d27\u51d1', value: 'compact' }]} value={settings.density} onChange={(value) => setSettings((current) => ({ ...current, density: value as UserSettingsRecord['density'] }))} />
-                  <PreferenceGroup title={'\u9ed8\u8ba4\u9996\u9875'} options={[{ label: session?.profile.role === 'TEACHER' ? '\u6559\u5e08\u5de5\u4f5c\u53f0' : '\u4eea\u8868\u76d8', value: session?.profile.role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard' }, { label: '\u8bfe\u7a0b\u4e2d\u5fc3', value: '/app/classes' }, { label: '\u56e2\u961f\u5de5\u4f5c\u53f0', value: '/app/teams' }]} value={settings.defaultHome} onChange={(value) => setSettings((current) => ({ ...current, defaultHome: value as UserSettingsRecord['defaultHome'] }))} />
-                  <PreferenceGroup title={'\u65f6\u95f4\u663e\u793a'} options={[{ label: '\u76f8\u5bf9\u65f6\u95f4', value: 'relative' }, { label: '\u7edd\u5bf9\u65f6\u95f4', value: 'absolute' }]} value={settings.timeFormat} onChange={(value) => setSettings((current) => ({ ...current, timeFormat: value as UserSettingsRecord['timeFormat'] }))} />
+                  <PreferenceGroup title={'\u5217\u8868\u5bc6\u5ea6'} options={[{ label: '\u8212\u9002', value: 'comfortable' }, { label: '\u7d27\u51d1', value: 'compact' }]} value={settings.density} onChange={(value) => updateSetting({ density: value as UserSettingsRecord['density'] })} />
+                  <PreferenceGroup title={'\u9ed8\u8ba4\u9996\u9875'} options={[{ label: profile.role === 'TEACHER' ? '\u6559\u5e08\u5de5\u4f5c\u53f0' : '\u4eea\u8868\u76d8', value: profile.role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard' }, { label: '\u8bfe\u7a0b\u4e2d\u5fc3', value: '/app/classes' }, { label: '\u56e2\u961f\u5de5\u4f5c\u53f0', value: '/app/teams' }]} value={settings.defaultHome} onChange={(value) => updateSetting({ defaultHome: value as UserSettingsRecord['defaultHome'] })} />
+                  <PreferenceGroup title={'\u65f6\u95f4\u663e\u793a'} options={[{ label: '\u76f8\u5bf9\u65f6\u95f4', value: 'relative' }, { label: '\u7edd\u5bf9\u65f6\u95f4', value: 'absolute' }]} value={settings.timeFormat} onChange={(value) => updateSetting({ timeFormat: value as UserSettingsRecord['timeFormat'] })} />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -185,7 +210,7 @@ export function SettingsPage() {
                   <InfoField label="API Base" value={API_BASE} mono />
                   <InfoField label="Collab Base" value={COLLAB_BASE} mono />
                   <InfoField label={'\u524d\u7aef\u73af\u5883'} value={(globalThis as typeof globalThis & { __APP_MODE__?: string }).__APP_MODE__ || 'development'} />
-                  <div className="rounded-2xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground">{'\u901a\u77e5\u8bbe\u7f6e\u548c\u754c\u9762\u504f\u597d\u5f53\u524d\u4fdd\u5b58\u5728\u6d4f\u89c8\u5668\u672c\u5730\uff0c\u8d26\u6237\u4fe1\u606f\u4e0e\u5bc6\u7801\u4fee\u6539\u8d70\u771f\u5b9e\u540e\u7aef\u63a5\u53e3\u3002'}</div>
+                  <div className="rounded-2xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground">{settingsMutation.isPending ? '\u8bbe\u7f6e\u4fdd\u5b58\u4e2d...' : '\u8bbe\u7f6e\u5df2\u6301\u4e45\u5316\u5230\u540e\u7aef'}</div>
                 </CardContent>
               </Card>
             </TabsContent>

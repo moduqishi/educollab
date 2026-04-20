@@ -9,6 +9,7 @@ import com.educollab.model.FileAssetEntity;
 import com.educollab.model.FileOwnerType;
 import com.educollab.model.UserRole;
 import com.educollab.repo.AssignmentSubmissionRepository;
+import com.educollab.repo.ChatRoomRepository;
 import com.educollab.repo.ClassMemberRepository;
 import com.educollab.repo.DiscussionPostRepository;
 import com.educollab.repo.DocumentRepository;
@@ -35,6 +36,7 @@ public class FileStorageService {
   private final DocumentRepository documentRepository;
   private final DiscussionPostRepository discussionPostRepository;
   private final AssignmentSubmissionRepository assignmentSubmissionRepository;
+  private final ChatRoomRepository chatRoomRepository;
   private final ClassMemberRepository classMemberRepository;
   private final ProjectAccessService projectAccessService;
   private final Path root;
@@ -46,6 +48,7 @@ public class FileStorageService {
       DocumentRepository documentRepository,
       DiscussionPostRepository discussionPostRepository,
       AssignmentSubmissionRepository assignmentSubmissionRepository,
+      ChatRoomRepository chatRoomRepository,
       ClassMemberRepository classMemberRepository,
       ProjectAccessService projectAccessService,
       @Value("${app.file-storage.root:./data/uploads}") String rootDir) {
@@ -54,6 +57,7 @@ public class FileStorageService {
     this.documentRepository = documentRepository;
     this.discussionPostRepository = discussionPostRepository;
     this.assignmentSubmissionRepository = assignmentSubmissionRepository;
+    this.chatRoomRepository = chatRoomRepository;
     this.classMemberRepository = classMemberRepository;
     this.projectAccessService = projectAccessService;
     this.root = Path.of(rootDir);
@@ -177,6 +181,19 @@ public class FileStorageService {
     return new FileSystemResource(entity.getStoragePath());
   }
 
+  public record FileDownloadInfo(Resource resource, String filename, String mimeType) {}
+
+  public FileDownloadInfo getDownloadInfo(Long id) {
+    FileAssetEntity entity =
+        fileAssetRepository.findById(id).orElseThrow(() -> new ApiException("文件不存在"));
+    ensureVisible(entity.getOwnerType(), entity.getOwnerId());
+    return new FileDownloadInfo(
+        new FileSystemResource(entity.getStoragePath()),
+        entity.getFileName(),
+        entity.getMimeType()
+    );
+  }
+
   public String filename(Long id) {
     FileAssetEntity entity =
         fileAssetRepository.findById(id).orElseThrow(() -> new ApiException("文件不存在"));
@@ -201,6 +218,10 @@ public class FileStorageService {
       ensureAssignmentSubmissionVisible(ownerId, principal);
       return;
     }
+    if (ownerType == FileOwnerType.CHAT_MESSAGE) {
+      chatRoomRepository.findById(ownerId).orElseThrow(() -> new ApiException("聊天室不存在"));
+      return;
+    }
     Long projectId = resolveProjectId(ownerType, ownerId);
     projectAccessService.requireVisible(projectId, principal);
   }
@@ -212,25 +233,24 @@ public class FileStorageService {
     if (ownerId == null) {
       throw new ApiException("ownerId 不能为空");
     }
-    return switch (ownerType) {
-      case PROJECT -> ownerId;
-      case TASK ->
-          taskRepository.findById(ownerId).orElseThrow(() -> new ApiException("任务不存在"))
-              .getProject()
-              .getId();
-      case DOCUMENT ->
-          documentRepository.findById(ownerId).orElseThrow(() -> new ApiException("文档不存在"))
-              .getProject()
-              .getId();
-      case DISCUSSION_POST ->
-          discussionPostRepository
-              .findById(ownerId)
-              .orElseThrow(() -> new ApiException("讨论不存在"))
-              .getProject()
-              .getId();
-      case ASSIGNMENT_SUBMISSION ->
-          throw new ApiException("作业提交附件不应走项目访问控制");
-    };
+    switch (ownerType) {
+      case PROJECT:
+        return ownerId;
+      case TASK:
+        return taskRepository.findById(ownerId).orElseThrow(() -> new ApiException("任务不存在"))
+            .getProject().getId();
+      case DOCUMENT:
+        return documentRepository.findById(ownerId).orElseThrow(() -> new ApiException("文档不存在"))
+            .getProject().getId();
+      case DISCUSSION_POST:
+        return discussionPostRepository.findById(ownerId).orElseThrow(() -> new ApiException("讨论不存在"))
+            .getProject().getId();
+      case CHAT_MESSAGE:
+        chatRoomRepository.findById(ownerId).orElseThrow(() -> new ApiException("聊天室不存在"));
+        return null;
+      default:
+        throw new ApiException("不支持的文件类型: " + ownerType);
+    }
   }
 
   private void ensureAssignmentSubmissionVisible(Long ownerId, JwtPrincipal principal) {

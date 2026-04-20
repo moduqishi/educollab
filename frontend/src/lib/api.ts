@@ -1,7 +1,9 @@
 export { ApiError, type ApiClientOptions } from './api-client/base';
 
+import { createAdminApi } from './api-client/admin';
 import { createAuthApi } from './api-client/auth';
 import { createRequestClient, type ApiClientOptions } from './api-client/base';
+import { createChatApi } from './api-client/chat';
 import { createClassroomApi } from './api-client/classrooms';
 import { createDocumentApi } from './api-client/documents';
 import { createGitApi } from './api-client/git';
@@ -20,5 +22,7 @@ export function createApiClient(options: ApiClientOptions) {
     ...createDocumentApi(request),
     ...createTeacherApi(request),
     ...createGitApi(request),
+    ...createChatApi(request),
+    ...createAdminApi(request),
   };
 }

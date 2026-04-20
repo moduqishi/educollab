@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BookOpen, Copy, RefreshCcw, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { BookOpen, GraduationCap, Search, Users, X } from 'lucide-react';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
 import { setTitle } from '@/app/title';
@@ -13,26 +13,16 @@ import {
   JoinClassDialog,
   PendingInvitationCard,
 } from '@/screens/classes/ClassDialogs';
-import { AssignmentsTab } from '@/screens/classes/ClassAssignmentsTab';
-import { GroupTasksTab } from '@/screens/classes/ClassGroupTasksTab';
-import { MembersTab } from '@/screens/classes/ClassMembersTab';
 import { PageEmpty, PageError, PageLoading } from '@/screens/common/States';
-import { PageHero } from '@/screens/shell/PageHero';
-import type { ClassDetail } from '@/lib/types';
-
-type ClassTab = 'overview' | 'members' | 'assignments' | 'groupTasks';
-
-function isClassTab(value: string | null): value is ClassTab {
-  return value === 'overview' || value === 'members' || value === 'assignments' || value === 'groupTasks';
-}
+import { Input } from '@/components/ui/input';
 
 export function ClassesPage() {
   const api = useApi();
   const qc = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAuth();
   const isTeacher = session?.profile.role === 'TEACHER';
+  const [search, setSearch] = React.useState('');
 
   React.useEffect(() => setTitle(['课程中心']), []);
 
@@ -43,412 +33,184 @@ export function ClassesPage() {
     enabled: !isTeacher,
   });
 
-  const requestedClassId = Number(searchParams.get('classId') || 0) || null;
-  const requestedTab = searchParams.get('tab');
-  const [selectedId, setSelectedId] = React.useState<number | null>(requestedClassId);
-  const [activeTab, setActiveTab] = React.useState<ClassTab>(
-    isClassTab(requestedTab) ? requestedTab : 'overview',
-  );
-
-  React.useEffect(() => {
-    if (requestedClassId && classesQ.data?.some((item) => item.id === requestedClassId)) {
-      setSelectedId(requestedClassId);
-      return;
-    }
-    if (!selectedId && classesQ.data?.[0]?.id) {
-      setSelectedId(classesQ.data[0].id);
-    }
-  }, [classesQ.data, requestedClassId, selectedId]);
-
-  React.useEffect(() => {
-    if (isClassTab(requestedTab) && requestedTab !== activeTab) {
-      setActiveTab(requestedTab);
-    }
-  }, [activeTab, requestedTab]);
-
-  React.useEffect(() => {
-    const next = new URLSearchParams(searchParams);
-    if (selectedId) {
-      next.set('classId', String(selectedId));
-    } else {
-      next.delete('classId');
-    }
-    if (activeTab === 'overview') {
-      next.delete('tab');
-    } else {
-      next.set('tab', activeTab);
-    }
-    if (next.toString() !== searchParams.toString()) {
-      setSearchParams(next, { replace: true });
-    }
-  }, [activeTab, searchParams, selectedId, setSearchParams]);
-
-  const detailQ = useQuery({
-    queryKey: ['classDetail', selectedId],
-    queryFn: () => api.classDetail(selectedId!),
-    enabled: !!selectedId,
-  });
-
-  const refreshAll = React.useCallback(
-    async () =>
-      Promise.all([
-        qc.invalidateQueries({ queryKey: ['classes'] }),
-        qc.invalidateQueries({ queryKey: ['classDetail'] }),
-        qc.invalidateQueries({ queryKey: ['classInvitations'] }),
-        qc.invalidateQueries({ queryKey: ['teacherAssignments'] }),
-        qc.invalidateQueries({ queryKey: ['assignmentSubmissions'] }),
-        qc.invalidateQueries({ queryKey: ['assignmentSubmission'] }),
-        qc.invalidateQueries({ queryKey: ['teams'] }),
-      ]),
-    [qc],
-  );
-
   const createClassM = useMutation({
     mutationFn: (name: string) => api.createClass({ name }),
     onSuccess: async (created) => {
-      setSelectedId(created.id);
-      await refreshAll();
+      await qc.invalidateQueries({ queryKey: ['classes'] });
+      navigate(`/app/classes/${created.id}/overview`);
     },
   });
+
   const joinClassM = useMutation({
     mutationFn: (code: string) => api.joinClassByCode(code),
     onSuccess: async (joined) => {
-      setSelectedId(joined.id);
-      await refreshAll();
+      await qc.invalidateQueries({ queryKey: ['classes'] });
+      navigate(`/app/classes/${joined.id}/overview`);
     },
   });
-  const inviteM = useMutation({
-    mutationFn: ({ classId, email }: { classId: number; email: string }) =>
-      api.inviteToClass(classId, email),
-    onSuccess: refreshAll,
-  });
-  const resetCodeM = useMutation({
-    mutationFn: (classId: number) => api.resetClassCode(classId),
-    onSuccess: refreshAll,
-  });
+
   const acceptInvitationM = useMutation({
     mutationFn: (id: number) => api.acceptClassInvitation(id),
-    onSuccess: refreshAll,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['classes'] });
+      await qc.invalidateQueries({ queryKey: ['classInvitations'] });
+    },
   });
+
   const rejectInvitationM = useMutation({
     mutationFn: (id: number) => api.rejectClassInvitation(id),
-    onSuccess: refreshAll,
-  });
-  const createAssignmentM = useMutation({
-    mutationFn: ({
-      classId,
-      payload,
-    }: {
-      classId: number;
-      payload: { title: string; summary: string; submissionUrl?: string; dueDate?: string };
-    }) => api.createAssignment(classId, payload),
-    onSuccess: refreshAll,
-  });
-  const createGroupTaskM = useMutation({
-    mutationFn: ({
-      classId,
-      payload,
-    }: {
-      classId: number;
-      payload: {
-        title: string;
-        description: string;
-        minMembers?: number;
-        maxMembers?: number;
-        dueDate?: string;
-      };
-    }) => api.createGroupTask(classId, payload),
-    onSuccess: refreshAll,
-  });
-  const createTeamM = useMutation({
-    mutationFn: ({ groupTaskId, name }: { groupTaskId: number; name: string }) =>
-      api.createGroupTaskTeam(groupTaskId, { name }),
-    onSuccess: refreshAll,
-  });
-  const joinTeamM = useMutation({
-    mutationFn: (teamId: number) => api.joinGroupTaskTeam(teamId),
-    onSuccess: refreshAll,
-  });
-  const leaveTeamM = useMutation({
-    mutationFn: (teamId: number) => api.leaveGroupTaskTeam(teamId),
-    onSuccess: refreshAll,
-  });
-  const transferLeaderM = useMutation({
-    mutationFn: ({ teamId, leaderUserId }: { teamId: number; leaderUserId: number }) =>
-      api.transferGroupTaskLeader(teamId, leaderUserId),
-    onSuccess: refreshAll,
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['classInvitations'] });
+    },
   });
 
   if (classesQ.isLoading) return <PageLoading label="正在加载课程..." />;
   if (classesQ.isError) return <PageError title="课程加载失败" onRetry={() => classesQ.refetch()} />;
 
   const classes = classesQ.data || [];
-  const detail = detailQ.data || null;
+  const filtered = classes.filter(c =>
+    !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.classCode?.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div>
-      <PageHero
-        title="课程中心"
-        subtitle={
-          isTeacher
-            ? '在一个地方管理课程成员、作业与组队任务。'
-            : '加入课程后查看作业、组队任务与老师通知。'
-        }
-        actions={
-          isTeacher ? (
-            <CreateClassDialog
-              onSubmit={(name) => createClassM.mutateAsync(name)}
-              busy={createClassM.isPending}
-            />
-          ) : (
-            <JoinClassDialog
-              onSubmit={(code) => joinClassM.mutateAsync(code)}
-              busy={joinClassM.isPending}
-            />
-          )
-        }
-      />
-
-      <div className="px-8 pb-10">
-        <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 xl:grid-cols-[320px,1fr]">
-          <div className="space-y-4">
-            <Card className="border-muted/70">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">我的课程</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {!classes.length ? (
-                  <PageEmpty
-                    title="还没有课程"
-                    message={isTeacher ? '先创建一门课程开始管理教学内容。' : '通过课程码加入一门课程。'}
-                    icon={BookOpen}
-                  />
-                ) : (
-                  classes.map((item) => (
-                    <button
-                      key={item.id}
-                      className={`w-full rounded-2xl border p-4 text-left transition ${
-                        selectedId === item.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-muted/70 hover:bg-muted/30'
-                      }`}
-                      onClick={() => setSelectedId(item.id)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate font-semibold">{item.name}</div>
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {item.teacherName || '未设置教师'}
-                          </div>
-                        </div>
-                        <Badge variant="outline">{item.memberCount} 人</Badge>
-                      </div>
-                      <div className="mt-2 text-xs text-muted-foreground">课程码：{item.classCode}</div>
-                    </button>
-                  ))
-                )}
-              </CardContent>
-            </Card>
-
-            {!isTeacher ? (
-              <PendingInvitationCard
-                invitations={pendingInvitationsQ.data || []}
-                onAccept={(id) => acceptInvitationM.mutateAsync(id)}
-                onReject={(id) => rejectInvitationM.mutateAsync(id)}
-                busy={acceptInvitationM.isPending || rejectInvitationM.isPending}
-              />
-            ) : null}
+    <div className="min-h-screen" style={{
+      background: 'radial-gradient(ellipse at 20% 0%, rgba(99,102,241,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 100%, rgba(16,185,129,0.05) 0%, transparent 50%), #fafafa'
+    }}>
+      {/* Header */}
+      <div className="border-b border-muted/40 bg-white/80 backdrop-blur-sm">
+        <div className="mx-auto max-w-[1400px] px-8 py-6">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight" style={{ fontFamily: "'PingFang SC', 'Inter', sans-serif" }}>
+                {isTeacher ? '我的课程' : '已加入课程'}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isTeacher ? '管理课程内容，查看学生作业与组队情况' : '查看作业、组队任务与老师通知'}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              {isTeacher ? (
+                <CreateClassDialog
+                  onSubmit={(name) => createClassM.mutateAsync(name)}
+                  busy={createClassM.isPending}
+                />
+              ) : (
+                <JoinClassDialog
+                  onSubmit={(code) => joinClassM.mutateAsync(code)}
+                  busy={joinClassM.isPending}
+                />
+              )}
+            </div>
           </div>
 
-          <div>
-            {!selectedId ? (
-              <PageEmpty
-                title="请选择一门课程"
-                message="从左侧选择课程后，可以查看概览、成员、作业与组队任务。"
-                icon={Users}
+          {/* 搜索栏 */}
+          <div className="mt-5 flex items-center gap-3">
+            <div className="relative flex-1 max-w-80">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索课程名称或班级码..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="h-11 rounded-2xl border-muted/60 bg-white pl-11 pr-10 shadow-sm"
               />
-            ) : detailQ.isLoading ? (
-              <PageLoading label="正在加载课程详情..." />
-            ) : detailQ.isError ? (
-              <PageError title="课程详情加载失败" onRetry={() => detailQ.refetch()} />
-            ) : detail ? (
-              <ClassDetailPanel
-                detail={detail}
-                isTeacher={!!isTeacher}
-                currentUserId={session?.profile.id}
-                activeTab={activeTab}
-                onChangeTab={setActiveTab}
-                onRefresh={refreshAll}
-                onResetCode={() => resetCodeM.mutateAsync(detail.classInfo.id)}
-                onInvite={(email) => inviteM.mutateAsync({ classId: detail.classInfo.id, email })}
-                onCreateAssignment={(payload) =>
-                  createAssignmentM.mutateAsync({ classId: detail.classInfo.id, payload })
-                }
-                onCreateGroupTask={(payload) =>
-                  createGroupTaskM.mutateAsync({ classId: detail.classInfo.id, payload })
-                }
-                onCreateTeam={(groupTaskId, name) => createTeamM.mutateAsync({ groupTaskId, name })}
-                onJoinTeam={(teamId) => joinTeamM.mutateAsync(teamId)}
-                onLeaveTeam={(teamId) => leaveTeamM.mutateAsync(teamId)}
-                onTransferLeader={(teamId, leaderUserId) =>
-                  transferLeaderM.mutateAsync({ teamId, leaderUserId })
-                }
-                onOpenTeam={(teamId) => navigate(`/app/teams?teamId=${teamId}`)}
-              />
-            ) : null}
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <span className="text-sm text-muted-foreground">{filtered.length} 门课程</span>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
 
-function ClassDetailPanel({
-  detail,
-  isTeacher,
-  currentUserId,
-  activeTab,
-  onChangeTab,
-  onRefresh,
-  onResetCode,
-  onInvite,
-  onCreateAssignment,
-  onCreateGroupTask,
-  onCreateTeam,
-  onJoinTeam,
-  onLeaveTeam,
-  onTransferLeader,
-  onOpenTeam,
-}: {
-  detail: ClassDetail;
-  isTeacher: boolean;
-  currentUserId?: number;
-  activeTab: ClassTab;
-  onChangeTab: (tab: ClassTab) => void;
-  onRefresh: () => Promise<unknown>;
-  onResetCode: () => Promise<unknown>;
-  onInvite: (email: string) => Promise<unknown>;
-  onCreateAssignment: (payload: {
-    title: string;
-    summary: string;
-    submissionUrl?: string;
-    dueDate?: string;
-  }) => Promise<unknown>;
-  onCreateGroupTask: (payload: {
-    title: string;
-    description: string;
-    minMembers?: number;
-    maxMembers?: number;
-    dueDate?: string;
-  }) => Promise<unknown>;
-  onCreateTeam: (groupTaskId: number, name: string) => Promise<unknown>;
-  onJoinTeam: (teamId: number) => Promise<unknown>;
-  onLeaveTeam: (teamId: number) => Promise<unknown>;
-  onTransferLeader: (teamId: number, leaderUserId: number) => Promise<unknown>;
-  onOpenTeam: (teamId: number) => void;
-}) {
-  const [copied, setCopied] = React.useState(false);
-  const tabs: Array<{ key: ClassTab; label: string }> = [
-    { key: 'overview', label: '概览' },
-    { key: 'members', label: '成员与邀请' },
-    { key: 'assignments', label: '普通作业' },
-    { key: 'groupTasks', label: '组队任务' },
-  ];
+      {/* 待处理邀请（非教师） */}
+      {!isTeacher ? (
+        <div className="mx-auto max-w-[1400px] px-8 pt-6">
+          <PendingInvitationCard
+            invitations={pendingInvitationsQ.data || []}
+            onAccept={(id) => acceptInvitationM.mutateAsync(id)}
+            onReject={(id) => rejectInvitationM.mutateAsync(id)}
+            busy={acceptInvitationM.isPending || rejectInvitationM.isPending}
+          />
+        </div>
+      ) : null}
 
-  const copyCode = async () => {
-    await navigator.clipboard.writeText(detail.classInfo.classCode);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1200);
-  };
-
-  return (
-    <div className="space-y-6">
-      <Card className="border-muted/70">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-xl">{detail.classInfo.name}</CardTitle>
-              <div className="mt-2 text-sm text-muted-foreground">
-                教师：{detail.classInfo.teacherName || '未设置'} · 成员 {detail.classInfo.memberCount} 人
-              </div>
+      {/* 课程网格 */}
+      <div className="mx-auto max-w-[1400px] px-8 py-6">
+        {!filtered.length ? (
+          <div className="flex flex-col items-center justify-center py-24">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-3xl bg-muted/50">
+              <BookOpen size={32} className="text-muted-foreground" />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline">课程码：{detail.classInfo.classCode}</Badge>
-              <Button size="sm" variant="outline" className="gap-1" onClick={copyCode}>
-                <Copy size={14} />
-                {copied ? '已复制' : '复制'}
-              </Button>
-              {isTeacher ? (
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => onResetCode()}>
-                  <RefreshCcw size={14} />
-                  重置课程码
-                </Button>
-              ) : null}
-            </div>
+            <p className="text-base font-medium text-foreground">
+              {search ? '没有找到匹配的课程' : '还没有课程'}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {search ? '请尝试其他搜索关键词' : (isTeacher ? '先创建一门课程开始管理教学内容' : '通过课程码加入一门课程')}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {tabs.map((tab) => (
-              <Button
-                key={tab.key}
-                size="sm"
-                variant={activeTab === tab.key ? 'default' : 'outline'}
-                onClick={() => onChangeTab(tab.key)}
-              >
-                {tab.label}
-              </Button>
-            ))}
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((item, idx) => {
+              const accentColors = [
+                'from-indigo-500/20 to-indigo-500/5 border-indigo-200/60 hover:border-indigo-400',
+                'from-emerald-500/20 to-emerald-500/5 border-emerald-200/60 hover:border-emerald-400',
+                'from-orange-500/20 to-orange-500/5 border-orange-200/60 hover:border-orange-400',
+                'from-pink-500/20 to-pink-500/5 border-pink-200/60 hover:border-pink-400',
+                'from-cyan-500/20 to-cyan-500/5 border-cyan-200/60 hover:border-cyan-400',
+                'from-purple-500/20 to-purple-500/5 border-purple-200/60 hover:border-purple-400',
+              ];
+              const accent = accentColors[idx % accentColors.length];
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => navigate(`/app/classes/${item.id}/overview`)}
+                  className={`group cursor-pointer rounded-2xl border bg-gradient-to-br ${accent} p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl`}
+                  style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04)' }}
+                >
+                  {/* 顶部装饰条 */}
+                  <div className={`h-1 w-12 rounded-full bg-gradient-to-r mb-4 ${
+                    idx % 6 === 0 ? 'from-indigo-500 to-indigo-400' :
+                    idx % 6 === 1 ? 'from-emerald-500 to-emerald-400' :
+                    idx % 6 === 2 ? 'from-orange-500 to-orange-400' :
+                    idx % 6 === 3 ? 'from-pink-500 to-pink-400' :
+                    idx % 6 === 4 ? 'from-cyan-500 to-cyan-400' :
+                    'from-purple-500 to-purple-400'
+                  }`} />
+
+                  {/* 标题区 */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-bold text-foreground leading-snug" style={{ fontFamily: "'PingFang SC', 'Inter', sans-serif" }}>
+                        {item.name}
+                      </h3>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <GraduationCap size={12} />
+                        <span>{item.teacherName || '未分配教师'}</span>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-xs font-medium bg-white/60">{item.memberCount} 人</Badge>
+                  </div>
+
+                  {/* 底部 */}
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="rounded-md bg-white/70 px-2 py-0.5 font-mono text-xs text-muted-foreground border border-muted/30">
+                      {item.classCode}
+                    </span>
+                    <span className="text-xs font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                      进入 →
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
-
-      {activeTab === 'overview' ? <OverviewTab detail={detail} /> : null}
-      {activeTab === 'members' ? (
-        <MembersTab detail={detail} isTeacher={isTeacher} onInvite={onInvite} />
-      ) : null}
-      {activeTab === 'assignments' ? (
-        <AssignmentsTab
-          detail={detail}
-          isTeacher={isTeacher}
-          onRefresh={onRefresh}
-          onCreateAssignment={onCreateAssignment}
-        />
-      ) : null}
-      {activeTab === 'groupTasks' ? (
-        <GroupTasksTab
-          detail={detail}
-          isTeacher={isTeacher}
-          currentUserId={currentUserId}
-          onCreateGroupTask={onCreateGroupTask}
-          onCreateTeam={onCreateTeam}
-          onJoinTeam={onJoinTeam}
-          onLeaveTeam={onLeaveTeam}
-          onTransferLeader={onTransferLeader}
-          onOpenTeam={onOpenTeam}
-        />
-      ) : null}
+        )}
+      </div>
     </div>
-  );
-}
-
-function OverviewTab({ detail }: { detail: ClassDetail }) {
-  return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-      <StatCard title="成员数" value={detail.members.length} />
-      <StatCard title="普通作业" value={detail.assignments.length} />
-      <StatCard title="组队任务" value={detail.groupTasks.length} />
-    </div>
-  );
-}
-
-function StatCard({ title, value }: { title: string; value: number }) {
-  return (
-    <Card className="border-muted/70">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm text-muted-foreground">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="text-2xl font-bold">{value}</CardContent>
-    </Card>
   );
 }

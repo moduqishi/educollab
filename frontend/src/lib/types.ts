@@ -1,4 +1,4 @@
-export type BackendRole = 'STUDENT' | 'TEACHER';
+export type BackendRole = 'STUDENT' | 'TEACHER' | 'ADMIN';
 export type AppRole = 'student' | 'teacher';
 
 export interface AuthSession {
@@ -12,6 +12,7 @@ export interface UserProfile {
   email: string;
   role: BackendRole;
   avatar?: string;
+  settings?: UserSettingsRecord;
 }
 
 export interface UpdateMyProfilePayload {
@@ -29,7 +30,7 @@ export interface UserSettingsRecord {
   notifyAssignment: boolean;
   notifyGroupTask: boolean;
   density: 'comfortable' | 'compact';
-  defaultHome: '/app/dashboard' | '/app/classes' | '/app/teams' | '/app/teacher/dashboard';
+  defaultHome: '/app/dashboard' | '/app/classes' | '/app/teams' | '/app/teacher/dashboard' | '/app/admin';
   timeFormat: 'relative' | 'absolute';
 }
 
@@ -41,6 +42,8 @@ export interface TeamRecord {
   memberCount: number;
   leaderId: number | null;
   leaderName: string;
+  inviteCode: string | null;
+  groupTaskId: number | null;
 }
 
 export interface CourseRecord {
@@ -512,4 +515,77 @@ export interface AppTask {
 export interface AppDocument extends DocumentRecord {
   preview: string;
   collabUrl: string;
+}
+
+// Admin types
+export interface AdminStats {
+  totalUsers: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalCourses: number;
+  totalProjects: number;
+  totalTasks: number;
+  totalDiscussions: number;
+  totalAssignments: number;
+}
+
+export interface AdminUserSummary {
+  id: number;
+  name: string;
+  email: string;
+  role: BackendRole;
+  avatar?: string;
+  createdAt: string;
+}
+
+export interface AdminCourseSummary {
+  id: number;
+  name: string;
+  classCode: string;
+  teacherName: string | null;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface AdminProjectSummary {
+  id: number;
+  name: string;
+  type: 'CODE' | 'NON_CODE';
+  status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+  progress: number;
+  courseName: string | null;
+  teamName: string | null;
+  createdAt: string;
+}
+
+export interface AdminTaskSummary {
+  id: number;
+  title: string;
+  description: string;
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  projectName: string | null;
+  assigneeName: string | null;
+  dueDate: string | null;
+}
+
+export interface AdminDiscussionSummary {
+  id: number;
+  title: string;
+  category: string;
+  status: string;
+  projectName: string | null;
+  authorName: string | null;
+  replyCount: number;
+  createdAt: string;
+}
+
+export interface AdminAssignmentSummary {
+  id: number;
+  title: string;
+  courseName: string | null;
+  dueDate: string | null;
+  totalSubmissions: number;
+  gradedSubmissions: number;
+  createdAt: string;
 }

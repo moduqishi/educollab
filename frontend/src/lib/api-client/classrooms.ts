@@ -57,5 +57,7 @@ export function createClassroomApi(request: RequestClient) {
       request<GroupTaskSubTaskRecord>(`/api/group-task-teams/tasks/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
     createGroupTaskTeamProject: (id: number, payload: { name: string; description: string; type: 'CODE' | 'NON_CODE'; dueDate?: string; initRepository: boolean }) =>
       request<ProjectRecord>(`/api/group-task-teams/${id}/project`, { method: 'POST', body: JSON.stringify(payload) }),
+    removeGroupTaskTeamMember: (teamId: number, userId: number) =>
+      request<void>(`/api/group-task-teams/${teamId}/members/${userId}`, { method: 'DELETE' }),
   };
 }

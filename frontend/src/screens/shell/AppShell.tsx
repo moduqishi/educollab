@@ -1,10 +1,9 @@
 import React from 'react';
-import { Outlet, NavLink, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Outlet, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { BarChart3, Bell, Bot, CheckSquare, ClipboardCheck, FileText, FolderKanban, GraduationCap, LayoutDashboard, LogOut, MessageSquare, MessagesSquare, Plus, Search, Settings, UserCircle2, Users } from 'lucide-react';
+import { BarChart3, Bell, Bot, CheckSquare, ClipboardCheck, FileText, FolderKanban, GraduationCap, LayoutDashboard, LogOut, MessageSquare, MessagesSquare, Settings, UserCircle2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -25,8 +24,6 @@ export function AppShell() {
   const api = useApi();
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
-  const [searchKeyword, setSearchKeyword] = React.useState('');
 
   const meQuery = useQuery({
     queryKey: ['me', token],
@@ -38,14 +35,6 @@ export function AppShell() {
     if (meQuery.data) setSession(meQuery.data);
   }, [meQuery.data, setSession]);
 
-  React.useEffect(() => {
-    if (location.pathname.startsWith('/app/projects')) {
-      setSearchKeyword(searchParams.get('q') || '');
-      return;
-    }
-    setSearchKeyword('');
-  }, [location.pathname, searchParams]);
-
   if (!token) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (!session && meQuery.isLoading) return <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">正在加载...</div>;
   if (!session && meQuery.isError) {
@@ -55,6 +44,7 @@ export function AppShell() {
   if (!session) return null;
 
   const isTeacher = session.profile.role === 'TEACHER';
+  const isAdmin = session.profile.role === 'ADMIN';
   const pathname = location.pathname;
   const topSection = pathname.split('/')[2] || 'dashboard';
 
@@ -65,12 +55,13 @@ export function AppShell() {
     projects: '项目',
     tasks: '任务',
     documents: '文档',
-    discussions: '讨论',
+    messages: '消息',
     ai: 'AI 助手',
     notifications: '通知',
     profile: '个人中心',
     settings: '设置中心',
     teacher: '教师工作台',
+    admin: '系统管理',
   };
 
   const studentNav: NavItem[] = [
@@ -80,7 +71,7 @@ export function AppShell() {
     { to: '/app/projects', label: '项目', icon: FolderKanban },
     { to: '/app/tasks', label: '任务', icon: CheckSquare },
     { to: '/app/documents', label: '文档', icon: FileText },
-    { to: '/app/discussions', label: '讨论', icon: MessageSquare },
+    { to: '/app/messages', label: '消息', icon: MessageSquare },
     { to: '/app/ai', label: 'AI 助手', icon: Bot },
   ];
 
@@ -94,12 +85,17 @@ export function AppShell() {
     { to: '/app/teacher/contributions', label: '贡献分析', icon: BarChart3 },
   ];
 
-  const submitSearch = () => {
-    const keyword = searchKeyword.trim();
-    navigate(keyword ? `/app/projects?q=${encodeURIComponent(keyword)}` : '/app/projects');
-  };
+  const adminNav: NavItem[] = [
+    { to: '/app/admin', label: '系统概览', icon: LayoutDashboard },
+    { to: '/app/admin/users', label: '用户管理', icon: Users },
+    { to: '/app/admin/courses', label: '课程管理', icon: GraduationCap },
+    { to: '/app/admin/projects', label: '项目管理', icon: FolderKanban },
+    { to: '/app/admin/tasks', label: '任务管理', icon: CheckSquare },
+    { to: '/app/admin/discussions', label: '讨论管理', icon: MessageSquare },
+    { to: '/app/admin/assignments', label: '作业管理', icon: ClipboardCheck },
+  ];
 
-  const navItems = isTeacher ? teacherNav : studentNav;
+  const navItems = isAdmin ? adminNav : isTeacher ? teacherNav : studentNav;
   const sectionLabel = sectionLabelMap[topSection] || '工作区';
 
   return (
@@ -151,7 +147,7 @@ export function AppShell() {
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{session.profile.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{isTeacher ? '教师' : '学生'}</p>
+                    <p className="truncate text-xs text-muted-foreground">{isAdmin ? '管理员' : isTeacher ? '教师' : '学生'}</p>
                   </div>
                 </button>
               }
@@ -177,39 +173,12 @@ export function AppShell() {
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-white/80 px-8 backdrop-blur-md">
           <div className="flex min-w-0 items-center gap-4">
             <h2 className="truncate text-lg font-semibold">{sectionLabel}</h2>
-            <Badge variant="outline" className="shrink-0 border-primary/20 bg-primary/5 text-primary">{isTeacher ? '教师视图' : '学生视图'}</Badge>
+            <Badge variant="outline" className="shrink-0 border-primary/20 bg-primary/5 text-primary">{isAdmin ? '管理员视图' : isTeacher ? '教师视图' : '学生视图'}</Badge>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="relative hidden w-72 md:block">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground"
-                size={16}
-                onClick={submitSearch}
-              />
-              <Input
-                value={searchKeyword}
-                onChange={(event) => setSearchKeyword(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    submitSearch();
-                  }
-                }}
-                placeholder="仅搜索项目名称"
-                className="border-none bg-muted/50 pl-10 focus-visible:ring-1"
-              />
-            </div>
-
-            <Button className="gap-2 rounded-full px-5" onClick={() => navigate('/app/teams')}>
-              <Plus size={18} />
-              {isTeacher ? '查看团队工作台' : '我的团队'}
-            </Button>
-
-            <Button variant="outline" size="icon" className="rounded-full" onClick={() => navigate('/app/notifications')} title="通知">
+          <Button variant="outline" size="icon" className="rounded-full" onClick={() => navigate('/app/notifications')} title="通知">
               <Bell size={18} />
             </Button>
-          </div>
         </header>
 
         <main className="min-w-0 flex-1">

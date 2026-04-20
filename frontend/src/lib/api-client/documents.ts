@@ -38,14 +38,18 @@ export function createDocumentApi(request: RequestClient) {
       if (opts?.versionLabel) form.append('versionLabel', opts.versionLabel);
       return request<DocumentRecord>(`/api/documents/${docId}/office/save`, { method: 'POST', body: form });
     },
-    files: (ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST' | 'ASSIGNMENT_SUBMISSION', ownerId: number) => request<FileAssetRecord[]>(`/api/files?ownerType=${ownerType}&ownerId=${ownerId}`),
-    uploadFile: async (ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST' | 'ASSIGNMENT_SUBMISSION', ownerId: number, file: File) => {
+    files: (ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST' | 'ASSIGNMENT_SUBMISSION' | 'CHAT_MESSAGE', ownerId: number) => request<FileAssetRecord[]>(`/api/files?ownerType=${ownerType}&ownerId=${ownerId}`),
+    uploadFile: async (ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST' | 'ASSIGNMENT_SUBMISSION' | 'CHAT_MESSAGE', ownerId: number, file: File) => {
       const form = new FormData();
       form.append('file', file);
       form.append('ownerType', ownerType);
       form.append('ownerId', String(ownerId));
       return request<FileAssetRecord>('/api/files', { method: 'POST', body: form });
     },
-    downloadFileUrl: (id: number) => toApiBase(`/api/files/${id}/download`),
+    downloadFileUrl: (id: number) => {
+      const token = localStorage.getItem('educollab.token');
+      const base = toApiBase(`/api/files/${id}/download`);
+      return token ? `${base}?access_token=${encodeURIComponent(token)}` : base;
+    },
   };
 }

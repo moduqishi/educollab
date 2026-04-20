@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GraduationCap, Users, FolderKanban, ClipboardCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { setTitle } from '@/app/title';
@@ -7,9 +8,11 @@ import { PageHero } from '@/screens/shell/PageHero';
 import { PageError, PageLoading, PageEmpty } from '@/screens/common/States';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export function TeacherDashboardPage() {
   const api = useApi();
+  const navigate = useNavigate();
   React.useEffect(() => setTitle(['教师工作台']), []);
 
   const q = useQuery({ queryKey: ['teacherOverview'], queryFn: () => api.teacherOverview() });
@@ -28,10 +31,10 @@ export function TeacherDashboardPage() {
       <div className="px-8 pb-10">
         <div className="mx-auto max-w-[1500px] space-y-6">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-            <Metric title="项目总数" value={data.totalProjects} icon={FolderKanban} />
-            <Metric title="活跃学生" value={data.activeStudents} icon={Users} />
-            <Metric title="待处理评审" value={data.pendingReviews} icon={ClipboardCheck} />
-            <Metric title="平均进度" value={`${data.averageProgress}%`} icon={GraduationCap} />
+            <Metric title="项目总数" value={data.totalProjects} icon={FolderKanban} onClick={() => navigate('/app/projects')} />
+            <Metric title="活跃学生" value={data.activeStudents} icon={Users} onClick={() => navigate('/app/classes')} />
+            <Metric title="待处理评审" value={data.pendingReviews} icon={ClipboardCheck} onClick={() => navigate('/app/teacher/feedback')} />
+            <Metric title="平均进度" value={`${data.averageProgress}%`} icon={GraduationCap} onClick={() => navigate('/app/projects')} />
           </div>
 
           <Card className="border-muted/70">
@@ -47,7 +50,11 @@ export function TeacherDashboardPage() {
               ) : (
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {data.projects.map((project) => (
-                    <div key={project.id} className="rounded-2xl border bg-muted/20 p-4">
+                    <div
+                      key={project.id}
+                      className="cursor-pointer rounded-2xl border bg-muted/20 p-4 transition-all hover:bg-muted/30 hover:shadow-sm"
+                      onClick={() => navigate(`/app/projects/${project.id}/overview`)}
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate font-semibold">{project.name}</div>
@@ -76,13 +83,15 @@ function Metric({
   title,
   value,
   icon: Icon,
+  onClick,
 }: {
   title: string;
   value: React.ReactNode;
   icon: React.ComponentType<{ size?: number }>;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="border-muted/70">
+    <Card className={cn('border-muted/70', onClick && 'cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]')} onClick={onClick}>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Icon size={15} />

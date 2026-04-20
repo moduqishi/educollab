@@ -62,9 +62,9 @@ export function DashboardPage() {
       <div className="px-8 pb-10">
         <div className="mx-auto max-w-[1500px] space-y-8">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <StatCard title="活跃项目" value={summary?.activeProjects} icon={<FolderKanban size={18} />} tone="primary" loading={q.isLoading} />
-            <StatCard title="待处理任务" value={summary?.pendingTasks} icon={<CheckSquare size={18} />} tone="neutral" loading={q.isLoading} />
-            <StatCard title="未读通知" value={summary?.unreadNotifications} icon={<Bell size={18} />} tone="neutral" loading={q.isLoading} />
+            <StatCard title="活跃项目" value={summary?.activeProjects} icon={<FolderKanban size={18} />} tone="primary" loading={q.isLoading} onClick={() => navigate('/app/projects?status=ACTIVE')} />
+            <StatCard title="待处理任务" value={summary?.pendingTasks} icon={<CheckSquare size={18} />} tone="neutral" loading={q.isLoading} onClick={() => navigate('/app/tasks')} />
+            <StatCard title="未读通知" value={summary?.unreadNotifications} icon={<Bell size={18} />} tone="neutral" loading={q.isLoading} onClick={() => navigate('/app/notifications')} />
           </div>
 
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -126,7 +126,11 @@ export function DashboardPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {(summary?.urgentTasks || []).map((t) => (
-                    <div key={t.id} className="rounded-xl border bg-muted/20 p-3">
+                    <div
+                      key={t.id}
+                      className="cursor-pointer rounded-xl border bg-muted/20 p-3 transition-colors hover:bg-muted/30"
+                      onClick={() => navigate(`/app/projects/${t.projectId}/tasks/${t.id}`)}
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="line-clamp-1 text-sm font-semibold">{t.title}</div>
@@ -180,15 +184,23 @@ function StatCard({
   icon,
   tone,
   loading,
+  onClick,
 }: {
   title: string;
   value?: number;
   icon: React.ReactNode;
   tone: 'primary' | 'neutral';
   loading?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <Card className={cn(tone === 'primary' ? 'border-none bg-primary text-primary-foreground shadow-xl shadow-primary/20' : 'shadow-sm')}>
+    <Card
+      className={cn(
+        tone === 'primary' ? 'border-none bg-primary text-primary-foreground shadow-xl shadow-primary/20' : 'shadow-sm',
+        onClick && 'cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]'
+      )}
+      onClick={onClick}
+    >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className={cn('text-sm font-medium', tone === 'primary' ? 'text-primary-foreground/90' : 'text-muted-foreground')}>{title}</CardTitle>

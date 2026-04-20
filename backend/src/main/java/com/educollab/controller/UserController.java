@@ -3,7 +3,9 @@ package com.educollab.controller;
 import com.educollab.common.util.SecurityUtils;
 import com.educollab.dto.AuthDtos.ChangePasswordRequest;
 import com.educollab.dto.AuthDtos.UpdateProfileRequest;
+import com.educollab.dto.AuthDtos.UpdateSettingsRequest;
 import com.educollab.dto.AuthDtos.UserProfile;
+import com.educollab.dto.AuthDtos.UserSettings;
 import com.educollab.repo.UserRepository;
 import com.educollab.service.UserProfileService;
 import jakarta.validation.Valid;
@@ -56,6 +58,16 @@ public class UserController {
     @PostMapping("/me/change-password")
     public void changePassword(@Valid @RequestBody ChangePasswordRequest request) {
         userProfileService.changePassword(SecurityUtils.principal(), request);
+    }
+
+    @GetMapping("/me/settings")
+    public UserSettings getSettings() {
+        return userProfileService.getSettings(SecurityUtils.principal());
+    }
+
+    @PutMapping("/me/settings")
+    public UserSettings updateSettings(@Valid @RequestBody UpdateSettingsRequest request) {
+        return userProfileService.updateSettings(SecurityUtils.principal(), request);
     }
 
     @GetMapping("/{id}/avatar")
