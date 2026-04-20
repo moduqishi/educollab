@@ -14,7 +14,8 @@ public class ProjectController {
     @GetMapping("/dashboard") public DashboardSummary dashboard() { return workspaceService.dashboard(SecurityUtils.principal()); }
     @GetMapping public List<ProjectRecord> list() { return workspaceService.projects(SecurityUtils.principal()); }
     @GetMapping("/{id}") public ProjectDetail detail(@PathVariable Long id) { return workspaceService.projectDetail(id, SecurityUtils.principal()); }
+    @GetMapping("/{id}/member-candidates") public List<ProjectMemberCandidate> memberCandidates(@PathVariable Long id) { return workspaceService.projectMemberCandidates(id, SecurityUtils.principal()); }
     @PostMapping public ProjectRecord create(@RequestBody ProjectSaveRequest request) { return workspaceService.createProject(request, SecurityUtils.principal()); }
-    @PostMapping("/{projectId}/members") public void addMember(@PathVariable Long projectId, @RequestBody ProjectMemberAddRequest request) { workspaceService.addProjectMember(projectId, request.userId(), SecurityUtils.principal()); }
-    @DeleteMapping("/{projectId}/members/{userId}") public void removeMember(@PathVariable Long projectId, @PathVariable Long userId) { workspaceService.removeProjectMember(projectId, userId, SecurityUtils.principal()); }
+    @PostMapping("/{projectId}/members") public void addMember(@PathVariable Long projectId, @RequestBody ProjectMemberAddRequest request) { workspaceService.addProjectMemberManaged(projectId, request.userId(), SecurityUtils.principal()); }
+    @DeleteMapping("/{projectId}/members/{userId}") public void removeMember(@PathVariable Long projectId, @PathVariable Long userId) { workspaceService.removeProjectMemberManaged(projectId, userId, SecurityUtils.principal()); }
 }

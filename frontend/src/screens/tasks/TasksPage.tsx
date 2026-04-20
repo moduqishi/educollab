@@ -1,240 +1,143 @@
 import React from 'react';
-import { Plus, CheckSquare } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, Calendar, Plus, Search, UserCircle2, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
 import { PageHero } from '@/screens/shell/PageHero';
-import { PageError, PageLoading, PageEmpty } from '@/screens/common/States';
+import { PageEmpty, PageError, PageLoading } from '@/screens/common/States';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import type { TaskRecord } from '@/lib/types';
-
-const statusLabel: Record<TaskRecord['status'], string> = {
-  TODO: '待开始',
-  IN_PROGRESS: '进行中',
-  REVIEW: '待验收',
-  DONE: '已完成',
-};
-
-const priorityLabel: Record<TaskRecord['priority'], string> = {
-  LOW: '低',
-  MEDIUM: '中',
-  HIGH: '高',
-};
+import { taskPriorityLabel, taskStatusLabel } from '@/components/tasks/TaskFormPage';
 
 export function TasksPage() {
   const api = useApi();
-  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [search, setSearch] = React.useState('');
   React.useEffect(() => setTitle(['任务']), []);
 
   const tasksQ = useQuery({ queryKey: ['tasks'], queryFn: () => api.tasks() });
-  const projectsQ = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() });
-  const usersQ = useQuery({ queryKey: ['users'], queryFn: () => api.users() });
 
-  const saveM = useMutation({
-    mutationFn: (payload: { id?: number; data: any }) => api.saveTask(payload.data, payload.id),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['tasks'] });
-      await qc.invalidateQueries({ queryKey: ['projectDetail'] });
-    },
-  });
-
-  const [open, setOpen] = React.useState(false);
-  const [projectId, setProjectId] = React.useState<number | null>(null);
-  const [title, setTitleText] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [status, setStatus] = React.useState<TaskRecord['status']>('TODO');
-  const [priority, setPriority] = React.useState<TaskRecord['priority']>('MEDIUM');
-  const [assigneeId, setAssigneeId] = React.useState<number | null>(null);
-
-  const canSubmit = !!projectId && !!title.trim();
-
-  const reset = () => {
-    setProjectId(null);
-    setTitleText('');
-    setDescription('');
-    setStatus('TODO');
-    setPriority('MEDIUM');
-    setAssigneeId(null);
-  };
-
-  const isLoading = tasksQ.isLoading || projectsQ.isLoading || usersQ.isLoading;
-  if (isLoading) return <PageLoading label="正在加载任务…" />;
+  if (tasksQ.isLoading) return <PageLoading label="正在加载任务..." />;
   if (tasksQ.isError) return <PageError title="任务加载失败" onRetry={() => tasksQ.refetch()} />;
-  if (projectsQ.isError) return <PageError title="项目加载失败" onRetry={() => projectsQ.refetch()} />;
-  if (usersQ.isError) return <PageError title="用户加载失败" onRetry={() => usersQ.refetch()} />;
 
-  const tasks = tasksQ.data || [];
-  const projects = projectsQ.data || [];
-  const users = usersQ.data || [];
+  const tasks = (tasksQ.data || []).filter(t =>
+    !search.trim() || t.title.toLowerCase().includes(search.trim().toLowerCase()) || (t.projectName || '').toLowerCase().includes(search.trim().toLowerCase())
+  );
 
   return (
     <div>
       <PageHero
         title="任务"
-        subtitle="跨项目查看并推进你的待办。建议先从“待开始/进行中”入手。"
+        subtitle="点击任务卡片会进入独立编辑页，不再使用小弹窗。"
         actions={
-          <Dialog
-            open={open}
-            onOpenChange={(v) => {
-              setOpen(v);
-              if (!v) reset();
-            }}
-          >
-            <DialogTrigger render={<Button className="gap-2" />}>
-              <Plus size={16} /> 新建任务
-            </DialogTrigger>
-            <DialogContent className="max-w-[720px]">
-              <DialogHeader>
-                <DialogTitle>新建任务</DialogTitle>
-              </DialogHeader>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-                <div className="space-y-2 md:col-span-2">
-                  <Label>所属项目</Label>
-                  <Select value={projectId ? String(projectId) : ''} onValueChange={(v) => setProjectId(Number(v))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="请选择项目" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {projects.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name}（{p.courseName}）
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>标题</Label>
-                  <Input value={title} onChange={(e) => setTitleText(e.target.value)} placeholder="用动词开头更清晰，例如：完成需求拆分 / 搭建接口联调" />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>描述</Label>
-                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="补充验收标准、相关链接、注意事项…" className="min-h-[100px]" />
-                </div>
-                <div className="space-y-2">
-                  <Label>状态</Label>
-                  <Select value={status} onValueChange={(v: any) => setStatus(v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'] as const).map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {statusLabel[s]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>优先级</Label>
-                  <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(['LOW', 'MEDIUM', 'HIGH'] as const).map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {priorityLabel[p]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>指派给（可选）</Label>
-                  <Select value={assigneeId ? String(assigneeId) : ''} onValueChange={(v) => setAssigneeId(v ? Number(v) : null)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="不指定" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.map((u) => (
-                        <SelectItem key={u.id} value={String(u.id)}>
-                          {u.name}（{u.email}）
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)} disabled={saveM.isPending}>
-                  取消
-                </Button>
-                <Button
-                  onClick={async () => {
-                    if (!canSubmit) return;
-                    await saveM.mutateAsync({
-                      data: {
-                        projectId: projectId!,
-                        title: title.trim(),
-                        description,
-                        status,
-                        priority,
-                        assigneeId: assigneeId || undefined,
-                      },
-                    });
-                    setOpen(false);
-                    reset();
-                  }}
-                  disabled={!canSubmit || saveM.isPending}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* 搜索栏 */}
+            <div className="relative w-64">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索任务标题..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-9 pr-9 h-9"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
-                  {saveM.isPending ? '正在创建…' : '创建任务'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <span className="text-sm text-muted-foreground">{tasks.length} 个任务</span>
+            <Button className="gap-2 ml-auto" onClick={() => navigate('/app/tasks/new')}>
+              <Plus size={16} />
+              新建任务
+            </Button>
+          </div>
         }
       />
 
       <div className="px-8 pb-10">
-        <div className="max-w-[1500px] mx-auto">
+        <div className="mx-auto max-w-[1500px]">
           {!tasks.length ? (
             <PageEmpty
               title="还没有任务"
-              message="从一个小任务开始：拆分里程碑、明确验收标准，让项目更可控。"
-              icon={CheckSquare}
+              message="先创建一条任务，或者进入项目把工作拆分出来。"
               action={
-                <Button className="gap-2" onClick={() => setOpen(true)}>
-                  <Plus size={16} /> 新建任务
+                <Button className="gap-2" onClick={() => navigate('/app/tasks/new')}>
+                  <Plus size={16} />
+                  新建任务
                 </Button>
               }
             />
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {tasks.map((t) => (
-                <Card key={t.id} className="border-muted/70 hover:shadow-sm transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <CardTitle className="text-base truncate">{t.title}</CardTitle>
-                        <div className="mt-1 text-sm text-muted-foreground truncate">{t.projectName}</div>
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              {tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="cursor-pointer text-left"
+                  onClick={() => navigate(`/app/tasks/${task.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/app/tasks/${task.id}`);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <Card className="h-full border-muted/70 transition hover:border-primary/40 hover:shadow-md">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <CardTitle className="truncate text-base">{task.title}</CardTitle>
+                          <div className="mt-1 truncate text-sm text-muted-foreground">
+                            {task.projectName}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{taskStatusLabel[task.status]}</Badge>
+                          <Badge variant={task.priority === 'HIGH' ? 'default' : 'secondary'}>
+                            {taskPriorityLabel[task.priority]}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[11px]">
-                          {statusLabel[t.status]}
-                        </Badge>
-                        <Badge variant={t.priority === 'HIGH' ? 'default' : 'secondary'} className="text-[11px]">
-                          {priorityLabel[t.priority]}
-                        </Badge>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-sm">
+                      <div className="line-clamp-3 text-muted-foreground">
+                        {task.description || '暂无描述'}
                       </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="text-sm space-y-3">
-                    <div className="text-muted-foreground line-clamp-2">{t.description || '—'}</div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>负责人：{t.assigneeName || '未指派'}</span>
-                      <span>截止：{t.dueDate || '未设置'}</span>
-                    </div>
-                  </CardContent>
-                </Card>
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <UserCircle2 size={12} />
+                          {task.assigneeName || '未指派'}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar size={12} />
+                          {task.dueDate || '未设置截止日期'}
+                        </span>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate(`/app/projects/${task.projectId}/tasks/${task.id}`);
+                          }}
+                        >
+                          进入项目任务页
+                          <ArrowRight size={14} />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               ))}
             </div>
           )}
@@ -243,4 +146,3 @@ export function TasksPage() {
     </div>
   );
 }
-

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Plus, Search, MessageSquare } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
 import { Button } from '@/components/ui/button';
@@ -15,29 +15,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { cn } from '@/lib/utils';
 
 const categories: Array<{ key: string; label: string }> = [
-  { key: 'GENERAL', label: 'General' },
-  { key: 'HELP_NEEDED', label: 'Help Needed' },
-  { key: 'TASK_ASSIGNMENT', label: 'Task Assignment' },
-  { key: 'BUG_REPORT', label: 'Bug Report' },
-  { key: 'RESOURCES', label: 'Resources' },
+  { key: 'GENERAL', label: '综合讨论' },
+  { key: 'HELP_NEEDED', label: '需要帮助' },
+  { key: 'TASK_ASSIGNMENT', label: '任务分工' },
+  { key: 'BUG_REPORT', label: '问题反馈' },
+  { key: 'RESOURCES', label: '资料共享' },
 ];
 
 export function DiscussionsPage() {
   const api = useApi();
   const nav = useNavigate();
   const qc = useQueryClient();
-  React.useEffect(() => setTitle(['Discussions']), []);
+  const [params, setParams] = useSearchParams();
+  React.useEffect(() => setTitle(['讨论']), []);
 
   const discussionsQ = useQuery({ queryKey: ['discussions'], queryFn: () => api.discussions() });
   const projectsQ = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() });
 
-  const [kw, setKw] = React.useState('');
+  const [kw, setKw] = React.useState(params.get('q') || '');
   const [open, setOpen] = React.useState(false);
-
   const [projectId, setProjectId] = React.useState<number | null>(null);
   const [category, setCategory] = React.useState('GENERAL');
   const [title, setTitleText] = React.useState('');
   const [content, setContent] = React.useState('');
+
+  React.useEffect(() => {
+    setKw(params.get('q') || '');
+  }, [params]);
 
   const createM = useMutation({
     mutationFn: () => api.createDiscussion({ projectId: projectId!, title: title.trim(), content: content.trim(), category }),
@@ -59,26 +63,26 @@ export function DiscussionsPage() {
 
   return (
     <div className="px-8 pb-10">
-      <div className="max-w-[1200px] mx-auto">
+      <div className="mx-auto max-w-[1200px]">
         <div className="flex items-start justify-between gap-6">
           <div>
-            <div className="text-3xl font-display font-bold">Forum Discussions</div>
-            <div className="mt-1 text-sm text-muted-foreground">Join the conversation and collaborate with your peers.</div>
+            <div className="text-3xl font-display font-bold">讨论广场</div>
+            <div className="mt-1 text-sm text-muted-foreground">围绕项目展开交流，沉淀问题、方案和协作记录。</div>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger render={<Button className="rounded-full gap-2" />}>
-              <Plus size={16} /> New Post
+            <DialogTrigger render={<Button className="gap-2 rounded-full" />}>
+              <Plus size={16} /> 新建帖子
             </DialogTrigger>
             <DialogContent className="max-w-[760px]">
               <DialogHeader>
-                <DialogTitle>New Post</DialogTitle>
+                <DialogTitle>新建帖子</DialogTitle>
               </DialogHeader>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+              <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Project</Label>
+                  <Label>所属项目</Label>
                   <Select value={projectId ? String(projectId) : ''} onValueChange={(v) => setProjectId(Number(v))}>
                     <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Select a project" />
+                      <SelectValue placeholder="请选择项目" />
                     </SelectTrigger>
                     <SelectContent>
                       {(projectsQ.data || []).map((p) => (
@@ -90,7 +94,7 @@ export function DiscussionsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Category</Label>
+                  <Label>分类</Label>
                   <Select value={category} onValueChange={setCategory}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue />
@@ -105,24 +109,24 @@ export function DiscussionsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Input readOnly value="OPEN" className="rounded-xl" />
+                  <Label>状态</Label>
+                  <Input readOnly value="开放中" className="rounded-xl" />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Title</Label>
-                  <Input value={title} onChange={(e) => setTitleText(e.target.value)} className="rounded-xl" />
+                  <Label>标题</Label>
+                  <Input value={title} onChange={(e) => setTitleText(e.target.value)} className="rounded-xl" placeholder="请输入讨论标题" />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label>Content</Label>
-                  <Textarea value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[160px] rounded-xl" />
+                  <Label>内容</Label>
+                  <Textarea value={content} onChange={(e) => setContent(e.target.value)} className="min-h-[160px] rounded-xl" placeholder="请输入帖子内容" />
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" className="rounded-full" onClick={() => setOpen(false)} disabled={createM.isPending}>
-                  Cancel
+                  取消
                 </Button>
                 <Button className="rounded-full" disabled={!projectId || !title.trim() || !content.trim() || createM.isPending} onClick={() => createM.mutate()}>
-                  {createM.isPending ? 'Posting…' : 'Post'}
+                  {createM.isPending ? '发布中...' : '发布帖子'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -130,33 +134,51 @@ export function DiscussionsPage() {
         </div>
 
         <div className="mt-6 flex items-center gap-3">
-          <div className="flex-1 relative">
+          <div className="relative flex-1">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input value={kw} onChange={(e) => setKw(e.target.value)} placeholder="Search discussions..." className="pl-10 rounded-full" />
+            <Input
+              value={kw}
+              onChange={(e) => {
+                const next = e.target.value;
+                setKw(next);
+                setParams((prev) => {
+                  const nextParams = new URLSearchParams(prev);
+                  if (next.trim()) nextParams.set('q', next);
+                  else nextParams.delete('q');
+                  return nextParams;
+                }, { replace: true });
+              }}
+              placeholder="搜索讨论内容..."
+              className="rounded-full pl-10"
+            />
           </div>
         </div>
 
         <div className="mt-8 space-y-4">
           {items.map((d) => (
-            <Card key={d.id} className="border-muted/60 hover:shadow-sm transition-shadow">
+            <Card key={d.id} className="border-muted/60 transition-shadow hover:shadow-sm">
               <CardContent className="p-6">
                 <button className="w-full text-left" onClick={() => nav(`/app/projects/${d.projectId}/discussions/${d.id}`)}>
                   <div className="flex items-start justify-between gap-6">
                     <div className="min-w-0">
-                      <div className="text-[11px] text-muted-foreground font-semibold">{d.projectName} · {d.createdAt}</div>
-                      <div className="mt-1 text-xl font-display font-bold truncate">{d.title}</div>
-                      <div className="mt-2 text-sm text-muted-foreground line-clamp-2">{d.content || '—'}</div>
+                      <div className="text-[11px] font-semibold text-muted-foreground">{d.projectName} · {d.createdAt}</div>
+                      <div className="mt-1 truncate text-xl font-display font-bold">{d.title}</div>
+                      <div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{d.content || '暂无内容'}</div>
                       <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1"><MessageSquare size={14} /> {d.replyCount} Comments</span>
-                        <Badge variant="outline" className={cn('rounded-full text-[10px]')}>{String(d.category).replaceAll('_', ' ')}</Badge>
+                        <span className="inline-flex items-center gap-1">
+                          <MessageSquare size={14} /> {d.replyCount} 条评论
+                        </span>
+                        <Badge variant="outline" className={cn('rounded-full text-[10px]')}>
+                          {categories.find((item) => item.key === d.category)?.label || String(d.category)}
+                        </Badge>
                       </div>
                     </div>
                     <div className="shrink-0">
                       <Badge
                         variant="outline"
-                        className={cn('rounded-full', d.status === 'OPEN' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-muted text-muted-foreground')}
+                        className={cn('rounded-full', d.status === 'OPEN' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'bg-muted text-muted-foreground')}
                       >
-                        {d.status === 'OPEN' ? 'Open' : 'Closed'}
+                        {d.status === 'OPEN' ? '开放中' : '已关闭'}
                       </Badge>
                     </div>
                   </div>
@@ -164,7 +186,7 @@ export function DiscussionsPage() {
               </CardContent>
             </Card>
           ))}
-          {!items.length ? <div className="py-12 text-center text-sm text-muted-foreground">No discussions yet.</div> : null}
+          {!items.length ? <div className="py-12 text-center text-sm text-muted-foreground">暂时还没有匹配的讨论内容。</div> : null}
         </div>
       </div>
     </div>

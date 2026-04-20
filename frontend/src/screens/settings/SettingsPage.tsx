@@ -1,73 +1,257 @@
 import React from 'react';
-import { LogOut, Settings as SettingsIcon } from 'lucide-react';
-import { setTitle } from '@/app/title';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Bell, LayoutGrid, LockKeyhole, LogOut, MonitorCog, Settings as SettingsIcon } from 'lucide-react';
+import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
+import { setTitle } from '@/app/title';
 import { PageHero } from '@/screens/shell/PageHero';
+import { PageError, PageLoading } from '@/screens/common/States';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { API_BASE, COLLAB_BASE } from '@/lib/mappers';
+import type { UserSettingsRecord } from '@/lib/types';
+
+const SETTINGS_KEY = 'educollab.user-settings';
+
+function defaultSettings(role?: 'STUDENT' | 'TEACHER' | 'ADMIN'): UserSettingsRecord {
+  const home = role === 'ADMIN' ? '/app/admin' : role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard';
+  return { notifyInApp: true, notifyTask: true, notifyAssignment: true, notifyGroupTask: true, density: 'comfortable', defaultHome: home, timeFormat: 'relative' };
+}
+
+function localSettings(role?: 'STUDENT' | 'TEACHER' | 'ADMIN'): UserSettingsRecord {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return defaultSettings(role);
+    return { ...defaultSettings(role), ...JSON.parse(raw) };
+  } catch {
+    return defaultSettings(role);
+  }
+}
 
 export function SettingsPage() {
-  const { session, logout } = useAuth();
-  React.useEffect(() => setTitle(['设置']), []);
+  const api = useApi();
+  const { session, logout, token } = useAuth();
+  const queryClient = useQueryClient();
+  const [currentPassword, setCurrentPassword] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [message, setMessage] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const apiBase = API_BASE;
-  const collabBase = COLLAB_BASE;
+  const profileQuery = useQuery({
+    queryKey: ['user-settings-profile', token],
+    enabled: !!token,
+    queryFn: () => api.userMe(),
+  });
+
+  const profile = profileQuery.data || session?.profile || null;
+
+  const [settings, setSettings] = React.useState<UserSettingsRecord | null>(null);
+
+  React.useEffect(() => {
+    if (!profileQuery.data) return;
+    const server = profileQuery.data.settings;
+    const local = localSettings(profileQuery.data.role);
+    const merged = server && server.notifyInApp !== undefined ? server : local;
+    setSettings(merged);
+  }, [profileQuery.data]);
+
+  React.useEffect(() => { setTitle(['\u8bbe\u7f6e\u4e2d\u5fc3']); }, []);
+
+  const settingsMutation = useMutation({
+    mutationFn: (s: UserSettingsRecord) => api.updateMySettings(s),
+    onSuccess: (updated) => {
+      setSettings(updated);
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+      queryClient.setQueryData(['user-settings-profile', token], (old: unknown) => {
+        if (!old || !(old as { profile?: { settings?: UserSettingsRecord } }).profile) return old;
+        return { ...old, profile: { ...((old as { profile: { settings?: UserSettingsRecord } }).profile), settings: updated } };
+      });
+    },
+    onError: (err: Error) => setError(err.message || '\u8bbe\u7f6e\u4fdd\u5b58\u5931\u8d25'),
+  });
+
+  function updateSetting(patch: Partial<UserSettingsRecord>) {
+    if (!settings) return;
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    setError(null);
+    settingsMutation.mutate(next, {
+      onError: (err) => setError('\u8bbe\u7f6e\u4fdd\u5b58\u5931\u8d25\uff1a' + (err.message || '\u540e\u7aef\u63a5\u53e3\u53ef\u80fd\u672a\u5df2\u91cd\u542f')),
+    });
+  }
+
+  const passwordMutation = useMutation({
+    mutationFn: () => api.changeMyPassword({ currentPassword, newPassword }),
+    onSuccess: () => {
+      setMessage('\u5bc6\u7801\u5df2\u66f4\u65b0');
+      setError(null);
+      setCurrentPassword('');
+      setNewPassword('');
+    },
+    onError: (err: Error) => {
+      setError(err.message || '\u5bc6\u7801\u4fee\u6539\u5931\u8d25\uffc1\u8bf7\u7a0d\u540e\u91cd\u8bd5');
+      setMessage(null);
+    },
+  });
+
+  if (profileQuery.isLoading && !profile) return <PageLoading label={'\u6b63\u5728\u52a0\u8f7d\u8bbe\u7f6e...'} />;
+  if (!profile) return <PageError title={'\u8bbe\u7f6e\u52a0\u8f7d\u5931\u8d25'} onRetry={() => profileQuery.refetch()} />;
+  if (!settings) return <PageLoading label={'\u6b63\u5728\u52a0\u8f7d\u8bbe\u7f6e...'} />;
+  const roleLabel = profile.role === 'ADMIN' ? '\u7ba1\u7406\u5458' : profile.role === 'TEACHER' ? '\u6559\u5e08' : '\u5b66\u751f';
 
   return (
     <div>
-      <PageHero title="设置" subtitle="账号信息、环境配置与偏好设置。" />
+      <PageHero title={'\u8bbe\u7f6e\u4e2d\u5fc3'} subtitle={'\u96c6\u4e2d\u7ba1\u7406\u8d26\u6237\u3001\u5b89\u5168\u3001\u901a\u77e5\u548c\u754c\u9762\u504f\u597d\u3002'} />
+      {error ? <div className="mx-8 mt-4 rounded-2xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">{error} <button className="underline ml-2" onClick={() => setError(null)}>✕</button></div> : null}
       <div className="px-8 pb-10">
-        <div className="max-w-[1200px] mx-auto space-y-6">
-          <Card className="border-muted/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <SettingsIcon size={16} /> 账号
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <div className="text-muted-foreground">姓名</div>
-                <div className="font-medium">{session?.profile.name || '—'}</div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-muted-foreground">邮箱</div>
-                <div className="font-medium">{session?.profile.email || '—'}</div>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-muted-foreground">身份</div>
-                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/15">
-                  {session?.profile.role === 'TEACHER' ? '教师' : '学生'}
-                </Badge>
-              </div>
-              <div className="pt-2">
-                <Button variant="outline" className="gap-2" onClick={logout}>
-                  <LogOut size={16} /> 退出登录
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="mx-auto max-w-[1200px]">
+          <Tabs defaultValue="account" className="gap-6">
+            <TabsList variant="line" className="rounded-2xl border border-muted bg-white p-1">
+              <TabsTrigger value="account" className="rounded-xl px-4">{'\u8d26\u6237\u8bbe\u7f6e'}</TabsTrigger>
+              <TabsTrigger value="notifications" className="rounded-xl px-4">{'\u901a\u77e5\u8bbe\u7f6e'}</TabsTrigger>
+              <TabsTrigger value="preferences" className="rounded-xl px-4">{'\u754c\u9762\u504f\u597d'}</TabsTrigger>
+              <TabsTrigger value="security" className="rounded-xl px-4">{'\u5b89\u5168'}</TabsTrigger>
+              <TabsTrigger value="system" className="rounded-xl px-4">{'\u7cfb\u7edf\u4fe1\u606f'}</TabsTrigger>
+            </TabsList>
 
-          <Card className="border-muted/70">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">环境</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-muted-foreground shrink-0">API Base</div>
-                <code className="text-xs bg-muted px-2 py-1 rounded break-all">{apiBase}</code>
-              </div>
-              <div className="flex items-center justify-between gap-4">
-                <div className="text-muted-foreground shrink-0">Collab Base</div>
-                <code className="text-xs bg-muted px-2 py-1 rounded break-all">{collabBase}</code>
-              </div>
-              <div className="text-[11px] text-muted-foreground pt-2">
-                提示：在 docker-compose 或本地启动脚本里配置 <code>VITE_API_BASE_URL</code> / <code>VITE_COLLAB_BASE_URL</code> 即可切换环境。
-              </div>
-            </CardContent>
-          </Card>
+            <TabsContent value="account">
+              <Card className="border-muted/70">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base"><SettingsIcon size={16} />{'\u8d26\u6237\u8bbe\u7f6e'}</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="rounded-3xl bg-muted/30 p-6 text-center">
+                    <Avatar className="mx-auto h-24 w-24 border-4 border-primary/10">
+                      <AvatarImage src={profile.avatar} />
+                      <AvatarFallback className="text-2xl">{profile.name?.slice(0, 1) || 'U'}</AvatarFallback>
+                    </Avatar>
+                    <div className="mt-4 text-lg font-semibold">{profile.name}</div>
+                    <div className="text-sm text-muted-foreground">{profile.email}</div>
+                    <Badge variant="outline" className="mt-3 border-primary/20 bg-primary/5 text-primary">{roleLabel}</Badge>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <InfoField label={'\u59d3\u540d'} value={profile.name} />
+                    <InfoField label={'\u90ae\u7bb1'} value={profile.email} />
+                    <InfoField label={'\u8eab\u4efd'} value={roleLabel} />
+                    <InfoField label={'\u5934\u50cf\u7ba1\u7406'} value={'\u8bf7\u524d\u5f80\u4e2a\u4eba\u4e2d\u5fc3\u4e0a\u4f20\u6216\u66f4\u6362\u5934\u50cf'} />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="notifications">
+              <Card className="border-muted/70">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base"><Bell size={16} />{'\u901a\u77e5\u8bbe\u7f6e'}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <SettingCheckbox label={'\u7ad9\u5185\u901a\u77e5'} description={'\u63a5\u6536\u7cfb\u7edf\u6d88\u606f\u548c\u72b6\u6001\u66f4\u65b0\u3002'} checked={settings.notifyInApp} onCheckedChange={(checked) => updateSetting({ notifyInApp: checked })} />
+                  <SettingCheckbox label={'\u4efb\u52a1\u63d0\u9192'} description={'\u961f\u5185\u4efb\u52a1\u5206\u914d\u548c\u622a\u6b62\u53d8\u66f4\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyTask} onCheckedChange={(checked) => updateSetting({ notifyTask: checked })} />
+                  <SettingCheckbox label={'\u4f5c\u4e1a\u63d0\u9192'} description={'\u73ed\u7ea7\u4f5c\u4e1a\u65b0\u589e\u6216\u5373\u5c06\u622a\u6b62\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyAssignment} onCheckedChange={(checked) => updateSetting({ notifyAssignment: checked })} />
+                  <SettingCheckbox label={'\u7ec4\u961f\u63d0\u9192'} description={'\u7ec4\u961f\u4efb\u52a1\u53d1\u5e03\u3001\u961f\u4f0d\u53d8\u5316\u548c\u9080\u8bf7\u786e\u8ba4\u65f6\u63d0\u9192\u6211\u3002'} checked={settings.notifyGroupTask} onCheckedChange={(checked) => updateSetting({ notifyGroupTask: checked })} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="preferences">
+              <Card className="border-muted/70">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base"><LayoutGrid size={16} />{'\u754c\u9762\u504f\u597d'}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <PreferenceGroup title={'\u5217\u8868\u5bc6\u5ea6'} options={[{ label: '\u8212\u9002', value: 'comfortable' }, { label: '\u7d27\u51d1', value: 'compact' }]} value={settings.density} onChange={(value) => updateSetting({ density: value as UserSettingsRecord['density'] })} />
+                  <PreferenceGroup title={'\u9ed8\u8ba4\u9996\u9875'} options={[{ label: profile.role === 'TEACHER' ? '\u6559\u5e08\u5de5\u4f5c\u53f0' : '\u4eea\u8868\u76d8', value: profile.role === 'TEACHER' ? '/app/teacher/dashboard' : '/app/dashboard' }, { label: '\u8bfe\u7a0b\u4e2d\u5fc3', value: '/app/classes' }, { label: '\u56e2\u961f\u5de5\u4f5c\u53f0', value: '/app/teams' }]} value={settings.defaultHome} onChange={(value) => updateSetting({ defaultHome: value as UserSettingsRecord['defaultHome'] })} />
+                  <PreferenceGroup title={'\u65f6\u95f4\u663e\u793a'} options={[{ label: '\u76f8\u5bf9\u65f6\u95f4', value: 'relative' }, { label: '\u7edd\u5bf9\u65f6\u95f4', value: 'absolute' }]} value={settings.timeFormat} onChange={(value) => updateSetting({ timeFormat: value as UserSettingsRecord['timeFormat'] })} />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="security">
+              <Card className="border-muted/70">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base"><LockKeyhole size={16} />{'\u5b89\u5168'}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="current-password">{'\u5f53\u524d\u5bc6\u7801'}</Label>
+                      <Input id="current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password">{'\u65b0\u5bc6\u7801'}</Label>
+                      <Input id="new-password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+                    </div>
+                  </div>
+                  {message ? <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div> : null}
+                  {error ? <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button className="rounded-full px-6" disabled={!currentPassword || !newPassword || passwordMutation.isPending} onClick={() => passwordMutation.mutate()}>
+                      {passwordMutation.isPending ? '\u4fdd\u5b58\u4e2d...' : '\u4fee\u6539\u5bc6\u7801'}
+                    </Button>
+                    <Button variant="outline" className="gap-2 rounded-full" onClick={logout}><LogOut size={16} />{'\u9000\u51fa\u767b\u5f55'}</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="system">
+              <Card className="border-muted/70">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base"><MonitorCog size={16} />{'\u7cfb\u7edf\u4fe1\u606f'}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  <InfoField label="API Base" value={API_BASE} mono />
+                  <InfoField label="Collab Base" value={COLLAB_BASE} mono />
+                  <InfoField label={'\u524d\u7aef\u73af\u5883'} value={(globalThis as typeof globalThis & { __APP_MODE__?: string }).__APP_MODE__ || 'development'} />
+                  <div className="rounded-2xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground">{settingsMutation.isPending ? '\u8bbe\u7f6e\u4fdd\u5b58\u4e2d...' : '\u8bbe\u7f6e\u5df2\u6301\u4e45\u5316\u5230\u540e\u7aef'}</div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-2xl border border-muted bg-white px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={mono ? 'mt-1 break-all rounded-lg bg-muted px-2 py-1 font-mono text-xs' : 'mt-1 text-sm font-medium'}>{value}</div>
+    </div>
+  );
+}
+
+function SettingCheckbox({ label, description, checked, onCheckedChange }: { label: string; description: string; checked: boolean; onCheckedChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-muted bg-white px-4 py-4">
+      <Checkbox checked={checked} onCheckedChange={(value) => onCheckedChange(Boolean(value))} />
+      <div>
+        <div className="text-sm font-medium">{label}</div>
+        <div className="mt-1 text-sm text-muted-foreground">{description}</div>
+      </div>
+    </label>
+  );
+}
+
+function PreferenceGroup({ title, options, value, onChange }: { title: string; options: Array<{ label: string; value: string }>; value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="text-sm font-medium">{title}</div>
+      <div className="flex flex-wrap gap-3">
+        {options.map((option) => (
+          <Button key={option.value} variant={value === option.value ? 'default' : 'outline'} className="rounded-full" onClick={() => onChange(option.value)}>
+            {option.label}
+          </Button>
+        ))}
       </div>
     </div>
   );

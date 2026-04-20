@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, Plus, Search } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
@@ -16,12 +16,17 @@ import { stripHtml } from '@/lib/mappers';
 export function DocumentsPage() {
   const api = useApi();
   const nav = useNavigate();
+  const [params, setParams] = useSearchParams();
   React.useEffect(() => setTitle(['文档']), []);
 
   const q = useQuery({ queryKey: ['documents'], queryFn: () => api.documents() });
-  const [kw, setKw] = React.useState('');
+  const [kw, setKw] = React.useState(params.get('q') || '');
 
-  if (q.isLoading) return <PageLoading label="正在加载文档…" />;
+  React.useEffect(() => {
+    setKw(params.get('q') || '');
+  }, [params]);
+
+  if (q.isLoading) return <PageLoading label="正在加载文档..." />;
   if (q.isError) return <PageError title="文档加载失败" onRetry={() => q.refetch()} />;
 
   const docs = (q.data || []).filter((d) => {
@@ -34,48 +39,62 @@ export function DocumentsPage() {
     <div>
       <PageHero
         title="文档"
-        subtitle="跨项目查看协作文档。建议把会议纪要、方案评审、接口联调记录都沉淀在这里。"
+        subtitle="跨项目查看协作文档，把会议纪要、方案评审和联调记录集中沉淀在这里。"
         actions={
           <Button variant="outline" className="gap-2" onClick={() => nav('/app/projects')}>
             <Plus size={16} /> 去项目里新建文档
           </Button>
         }
         right={
-          <div className="w-[360px] max-w-full relative">
+          <div className="relative w-[360px] max-w-full">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input className="pl-9 bg-muted/40 border-border/60" placeholder="搜索文档标题、项目…" value={kw} onChange={(e) => setKw(e.target.value)} />
+            <Input
+              className="border-border/60 bg-muted/40 pl-9"
+              placeholder="搜索文档标题、项目..."
+              value={kw}
+              onChange={(e) => {
+                const next = e.target.value;
+                setKw(next);
+                setParams((prev) => {
+                  const nextParams = new URLSearchParams(prev);
+                  if (next.trim()) nextParams.set('q', next);
+                  else nextParams.delete('q');
+                  return nextParams;
+                }, { replace: true });
+              }}
+            />
           </div>
         }
       />
 
       <div className="px-8 pb-10">
-        <div className="max-w-[1500px] mx-auto">
+        <div className="mx-auto max-w-[1500px]">
           {!docs.length ? (
             <PageEmpty
-              title={kw.trim() ? '未找到匹配的文档' : '还没有文档'}
-              message={kw.trim() ? '换个关键词试试，或去项目里新建一篇文档。' : '去任意项目新建文档后，这里会自动聚合。'}
+              title={kw.trim() ? '没有找到匹配的文档' : '还没有文档'}
+              message={kw.trim() ? '换个关键词试试，或者去项目里新建一篇文档。' : '去任意项目新建文档后，这里会自动聚合显示。'}
               icon={FileText}
             />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {docs.map((d) => (
-                <Card key={d.id} className={cn('border-muted/70 hover:shadow-sm transition-shadow')}>
+                <Card key={d.id} className={cn('border-muted/70 transition-shadow hover:shadow-sm')}>
                   <CardHeader className="pb-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <CardTitle className="text-base truncate">{d.title}</CardTitle>
+                        <CardTitle className="truncate text-base">{d.title}</CardTitle>
                         <CardDescription className="truncate">{d.projectName}</CardDescription>
                       </div>
                       <Badge variant="outline" className="text-[11px]">
-                        {(d.kind || 'NOTE') === 'OFFICE' ? `OFFICE · ${(d.officeExt || 'file').toUpperCase()}` : 'NOTE'}
+                        {(d.kind || 'NOTE') === 'OFFICE' ? `Office · ${(d.officeExt || 'file').toUpperCase()}` : '笔记'}
                       </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <div className="text-sm text-muted-foreground line-clamp-3">
+                    <div className="line-clamp-3 text-sm text-muted-foreground">
                       {(d.kind || 'NOTE') === 'OFFICE'
                         ? d.excerpt || `Office 文档（${d.officeExt || 'file'}）`
-                        : d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '—'}
+                        : d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '暂无内容'}
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>更新：{d.updatedAt}</span>

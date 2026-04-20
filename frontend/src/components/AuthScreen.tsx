@@ -125,20 +125,22 @@ export function AuthScreen({
 
             {mode === 'register' && (
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label>角色</Label>
                 <Select value={role} onValueChange={(v: any) => setRole(v)}>
                   <SelectTrigger className="bg-white">
-                    <SelectValue placeholder="Select role" />
+                    <SelectValue placeholder="选择角色">
+                      {role === 'TEACHER' ? '教师' : '学生'}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="STUDENT">
                       <div className="flex items-center gap-2">
-                        <GraduationCap size={16} /> Student
+                        <GraduationCap size={16} /> 学生
                       </div>
                     </SelectItem>
                     <SelectItem value="TEACHER">
                       <div className="flex items-center gap-2">
-                        <UserCog size={16} /> Teacher
+                        <UserCog size={16} /> 教师
                       </div>
                     </SelectItem>
                   </SelectContent>

@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export DB_URL=\"jdbc:mysql://localhost:3306/educollab?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8\")",
+      "Bash(export DB_USERNAME=\"educollab\")",
+      "Bash(export DB_PASSWORD=\"educollab\")",
+      "Bash(export JWT_SECRET=\"educollab-demo-jwt-secret-change-me-32-bytes-minimum\")",
+      "Bash(export FILE_STORAGE_ROOT=\"d:/小许的瞎玩日记/educollab-main/backend/data/uploads\")",
+      "Bash(where mvn *)",
+      "Bash(mysqladmin ping *)",
+      "Bash(sc query *)",
+      "Bash(tasklist)",
+      "Bash(findstr -i mysql)",
+      "Bash(where mysql *)",
+      "Bash(where mysqld *)",
+      "Read(//c/Program Files/MySQL/**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Bash(\"C:/Program Files/MySQL/MySQL Server 8.4/bin/mysqld\" --install mysql80 --defaults-file=\"C:/ProgramData/MySQL/MySQL Server 8.4/my.ini\")",
+      "Bash(\"C:/Program Files/MySQL/MySQL Server 8.4/bin/mysql\" -u root -e \"SHOW DATABASES;\")",
+      "Bash(cmd /c \"d:/小许的瞎玩日记/educollab-main/scripts/start.bat\")",
+      "Bash(cmd /c \"scripts\\\\stop.bat\")",
+      "Bash(bash -c 'scripts/start.bat')",
+      "Bash(netstat -ano)",
+      "Bash(java -DB_URL='jdbc:mysql://localhost:3306/educollab?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8' -DDB_USERNAME=educollab -DDB_PASSWORD=educollab -DJWT_SECRET=educollab-demo-jwt-secret-change-me-32-bytes-minimum -DFILE_STORAGE_ROOT='d:/小许的瞎玩日记/educollab-main/backend/data/uploads' -DGIT_REPO_ROOT='d:/小许的瞎玩日记/educollab-main/backend/data/repos' -jar target/educollab-backend-0.2.0.jar)",
+      "Bash(npm run *)",
+      "Bash(mvn compile *)",
+      "Bash(curl -sv http://localhost:8080/api/group-task-teams/1)",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@educollab.local\",\"password\":\"Password123!\"}')",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"http://localhost:8080/api/group-task-teams/1\" -H \"Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiI4IiwiZW1haWwiOiJhZG1pbkBlZHVjb2xsYWIubG9jYWwiLCJyb2xlIjoiQURNSU4iLCJpYXQiOjE3NzY2NTIzMjYsImV4cCI6MTc3NjczODcyNn0.PKuEaE8hUbAfLayqMOVjbegSEZp_4uNbso2eq75oqDjqWTpWAvFrG9NCPNHW4wcV\")",
+      "Bash(npx tsc *)",
+      "Bash(taskkill //F //IM java.exe)",
+      "Bash(mvn package *)",
+      "Read(//c/Program Files/Maven/bin/**)",
+      "Read(//c/apache-maven/bin/**)",
+      "Bash(npx vite *)",
+      "Bash(git -C \"d:/小许的瞎玩日记/educollab-main\" diff --stat frontend/src/screens/teams/)"
+    ]
+  }
+}

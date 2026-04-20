@@ -366,7 +366,7 @@ npm run lint
 
 ```bash
 cd backend
-mvn -Dmaven.repo.local=/tmp/educollab-m2 test
+..\.local-run\apache-maven-3.9.9\bin\mvn.cmd test
 ```
 
 ### 最小冒烟 Checklist
@@ -386,6 +386,7 @@ mvn -Dmaven.repo.local=/tmp/educollab-m2 test
 ├── backend/         # Spring Boot 后端（8080）
 ├── collab-server/   # Hocuspocus 协同服务（1234）
 ├── scripts/         # 本机一键启动脚本（.local-run 日志）
+├── .local-run/      # 本地运行态目录（PID、日志、临时工具链，不纳入源码）
 ├── docker-compose.yml
 └── .env.example
 ```

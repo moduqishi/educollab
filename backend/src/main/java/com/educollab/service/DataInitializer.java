@@ -1,8 +1,38 @@
 package com.educollab.service;
 
-import com.educollab.model.*;
-import com.educollab.repo.*;
+import com.educollab.model.AssignmentEntity;
+import com.educollab.model.ClassMemberEntity;
+import com.educollab.model.ClassMemberRole;
+import com.educollab.model.CourseEntity;
+import com.educollab.model.NotificationEntity;
+import com.educollab.model.NotificationSourceType;
+import com.educollab.model.NotificationType;
+import com.educollab.model.ProjectEntity;
+import com.educollab.model.ProjectMemberEntity;
+import com.educollab.model.ProjectStatus;
+import com.educollab.model.ProjectType;
+import com.educollab.model.TaskEntity;
+import com.educollab.model.TaskPriority;
+import com.educollab.model.TaskStatus;
+import com.educollab.model.TeamEntity;
+import com.educollab.model.TeamMemberEntity;
+import com.educollab.model.TeamStatus;
+import com.educollab.model.TeacherFeedbackEntity;
+import com.educollab.model.UserEntity;
+import com.educollab.model.UserRole;
+import com.educollab.repo.AssignmentRepository;
+import com.educollab.repo.ClassMemberRepository;
+import com.educollab.repo.CourseRepository;
+import com.educollab.repo.NotificationRepository;
+import com.educollab.repo.ProjectMemberRepository;
+import com.educollab.repo.ProjectRepository;
+import com.educollab.repo.TaskRepository;
+import com.educollab.repo.TeamMemberRepository;
+import com.educollab.repo.TeamRepository;
+import com.educollab.repo.TeacherFeedbackRepository;
+import com.educollab.repo.UserRepository;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -11,149 +41,232 @@ import org.springframework.stereotype.Component;
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
+    private final ClassMemberRepository classMemberRepository;
     private final TeamRepository teamRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskRepository taskRepository;
-    private final DiscussionPostRepository discussionPostRepository;
-    private final DiscussionReplyRepository discussionReplyRepository;
-    private final DocumentRepository documentRepository;
     private final AssignmentRepository assignmentRepository;
     private final TeacherFeedbackRepository teacherFeedbackRepository;
+    private final NotificationRepository notificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final GitService gitService;
 
-    public DataInitializer(UserRepository userRepository, CourseRepository courseRepository, TeamRepository teamRepository, TeamMemberRepository teamMemberRepository, ProjectRepository projectRepository, ProjectMemberRepository projectMemberRepository, TaskRepository taskRepository, DiscussionPostRepository discussionPostRepository, DiscussionReplyRepository discussionReplyRepository, DocumentRepository documentRepository, AssignmentRepository assignmentRepository, TeacherFeedbackRepository teacherFeedbackRepository, PasswordEncoder passwordEncoder, GitService gitService) {
+    public DataInitializer(
+        UserRepository userRepository,
+        CourseRepository courseRepository,
+        ClassMemberRepository classMemberRepository,
+        TeamRepository teamRepository,
+        TeamMemberRepository teamMemberRepository,
+        ProjectRepository projectRepository,
+        ProjectMemberRepository projectMemberRepository,
+        TaskRepository taskRepository,
+        AssignmentRepository assignmentRepository,
+        TeacherFeedbackRepository teacherFeedbackRepository,
+        NotificationRepository notificationRepository,
+        PasswordEncoder passwordEncoder,
+        GitService gitService
+    ) {
         this.userRepository = userRepository;
         this.courseRepository = courseRepository;
+        this.classMemberRepository = classMemberRepository;
         this.teamRepository = teamRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.taskRepository = taskRepository;
-        this.discussionPostRepository = discussionPostRepository;
-        this.discussionReplyRepository = discussionReplyRepository;
-        this.documentRepository = documentRepository;
         this.assignmentRepository = assignmentRepository;
         this.teacherFeedbackRepository = teacherFeedbackRepository;
+        this.notificationRepository = notificationRepository;
         this.passwordEncoder = passwordEncoder;
         this.gitService = gitService;
     }
 
     @Override
     public void run(String... args) {
-        if (userRepository.count() > 0) return;
-        UserEntity alex = user("Alex Rivera", "alex@educollab.local", UserRole.STUDENT, "alex");
-        UserEntity sarah = user("Sarah Chen", "sarah@educollab.local", UserRole.STUDENT, "sarah");
-        UserEntity teacher = user("Dr. James Wilson", "teacher@educollab.local", UserRole.TEACHER, "james");
-        UserEntity liam = user("Liam Smith", "liam@educollab.local", UserRole.STUDENT, "liam");
-        userRepository.saveAll(List.of(alex, sarah, teacher, liam));
+        UserEntity admin = ensureUser("系统管理员", "admin@educollab.local", UserRole.ADMIN, "admin");
+        UserEntity teacher = ensureUser("王老师", "teacher@educollab.local", UserRole.TEACHER, "teacher");
+        UserEntity xulaoliu = ensureUser("xulaoliu", "xulaoliu@educollab.local", UserRole.STUDENT, "xulaoliu");
+        UserEntity alex = ensureUser("Alex Rivera", "alex@educollab.local", UserRole.STUDENT, "alex");
+        UserEntity sarah = ensureUser("Sarah Chen", "sarah@educollab.local", UserRole.STUDENT, "sarah");
+        UserEntity liam = ensureUser("Liam Smith", "liam@educollab.local", UserRole.STUDENT, "liam");
+        UserEntity yuki = ensureUser("Yuki Lin", "yuki@educollab.local", UserRole.STUDENT, "yuki");
+        UserEntity chenhao = ensureUser("陈浩", "chenhao@educollab.local", UserRole.STUDENT, "chenhao");
 
-        CourseEntity software = new CourseEntity();
-        software.setName("软件工程");
-        software.setTeacher(teacher);
-        courseRepository.save(software);
-
-        TeamEntity team = new TeamEntity();
-        team.setName("云码工坊");
-        team.setCourse(software);
-        team.setLeader(alex);
-        teamRepository.save(team);
-        for (UserEntity user : List.of(alex, sarah, liam)) {
-            TeamMemberEntity member = new TeamMemberEntity();
-            member.setTeam(team);
-            member.setUser(user);
-            teamMemberRepository.save(member);
+        CourseEntity course = ensureCourse(teacher);
+        ensureClassMember(course, teacher, ClassMemberRole.TEACHER, "CREATED");
+        for (UserEntity student : List.of(xulaoliu, alex, sarah, liam, yuki, chenhao)) {
+            ensureClassMember(course, student, ClassMemberRole.STUDENT, "SEED");
         }
 
-        ProjectEntity codeProject = new ProjectEntity();
-        codeProject.setTeam(team);
-        codeProject.setCourse(software);
-        codeProject.setName("AI Research Assistant");
-        codeProject.setDescription("面向课程协作场景的 AI 作业协作平台开发。");
-        codeProject.setType(ProjectType.CODE);
-        codeProject.setStatus(ProjectStatus.ACTIVE);
-        codeProject.setProgress(68);
-        projectRepository.save(codeProject);
-        for (UserEntity user : List.of(alex, sarah, liam)) {
-            ProjectMemberEntity pm = new ProjectMemberEntity();
-            pm.setProject(codeProject);
-            pm.setUser(user);
-            pm.setOwnerFlag(user.getId().equals(alex.getId()));
-            projectMemberRepository.save(pm);
+        TeamEntity aiTeam = ensureTeam("探索一队", course, xulaoliu);
+        TeamEntity campusTeam = ensureTeam("创想二队", course, xulaoliu);
+
+        ensureTeamMember(aiTeam, xulaoliu);
+        ensureTeamMember(aiTeam, alex);
+        ensureTeamMember(aiTeam, sarah);
+        ensureTeamMember(campusTeam, xulaoliu);
+        ensureTeamMember(campusTeam, liam);
+        ensureTeamMember(campusTeam, yuki);
+        ensureTeamMember(campusTeam, chenhao);
+
+        ProjectEntity aiProject = ensureProject(
+            "AI Research Assistant",
+            "面向课程协作场景的 AI 作业协作平台开发。",
+            ProjectType.CODE,
+            aiTeam,
+            course,
+            68
+        );
+        ProjectEntity campusProject = ensureProject(
+            "Sustainable Campus Initiative",
+            "零废弃校园提案与执行计划。",
+            ProjectType.NON_CODE,
+            campusTeam,
+            course,
+            100
+        );
+
+        ensureProjectMember(aiProject, xulaoliu, true);
+        ensureProjectMember(aiProject, alex, false);
+        ensureProjectMember(aiProject, sarah, false);
+        ensureProjectMember(campusProject, xulaoliu, true);
+        ensureProjectMember(campusProject, liam, false);
+        ensureProjectMember(campusProject, yuki, false);
+        ensureProjectMember(campusProject, chenhao, false);
+
+        ensureTask(aiProject, xulaoliu, "负责成员邀请与权限治理", "完善项目成员邀请、移除和队长权限控制。", TaskStatus.IN_PROGRESS, TaskPriority.HIGH);
+        ensureTask(aiProject, alex, "修复仓库克隆弹窗", "整理克隆地址、认证说明和访问令牌交互。", TaskStatus.TODO, TaskPriority.MEDIUM);
+        ensureTask(campusProject, liam, "整理班级展示资料", "完善成员资料和展示文案。", TaskStatus.DONE, TaskPriority.MEDIUM);
+
+        ensureAssignment(course, aiProject);
+        ensureFeedback(aiProject, teacher);
+
+        // 创建通知
+        TaskEntity task1 = taskRepository.findByProjectId(aiProject.getId()).stream()
+            .filter(t -> t.getTitle().contains("成员邀请")).findFirst().orElse(null);
+        if (task1 != null) {
+            ensureNotification(xulaoliu, "任务即将截止",
+                "任务【负责成员邀请与权限治理】将于明天截止，请及时完成。",
+                NotificationType.TASK, NotificationSourceType.TASK, task1.getId(), "/app/projects/" + aiProject.getId() + "/tasks", "AI Research Assistant");
         }
 
-        ProjectEntity nonCodeProject = new ProjectEntity();
-        nonCodeProject.setTeam(team);
-        nonCodeProject.setCourse(software);
-        nonCodeProject.setName("Sustainable Campus Initiative");
-        nonCodeProject.setDescription("零废弃校园提案与执行计划。");
-        nonCodeProject.setType(ProjectType.NON_CODE);
-        nonCodeProject.setStatus(ProjectStatus.ACTIVE);
-        nonCodeProject.setProgress(54);
-        projectRepository.save(nonCodeProject);
-        for (UserEntity user : List.of(alex, teacher, liam)) {
-            ProjectMemberEntity pm = new ProjectMemberEntity();
-            pm.setProject(nonCodeProject);
-            pm.setUser(user);
-            pm.setOwnerFlag(user.getId().equals(liam.getId()));
-            projectMemberRepository.save(pm);
+        TaskEntity task2 = taskRepository.findByProjectId(campusProject.getId()).stream()
+            .filter(t -> t.getStatus() == TaskStatus.TODO).findFirst().orElse(null);
+        if (task2 != null) {
+            ensureNotification(liam, "新任务已分配",
+                "你被分配了新任务【" + task2.getTitle() + "】，请前往项目查看。",
+                NotificationType.TASK, NotificationSourceType.TASK, task2.getId(), "/app/projects/" + campusProject.getId() + "/tasks", "Sustainable Campus Initiative");
         }
 
-        TaskEntity t1 = task(codeProject, alex, "实现向量检索模块", "接入检索与索引流程", TaskStatus.IN_PROGRESS, TaskPriority.HIGH);
-        TaskEntity t2 = task(codeProject, sarah, "迁移 Vue 工作台页面", "迁移原型页面与路由", TaskStatus.TODO, TaskPriority.MEDIUM);
-        TaskEntity t3 = task(nonCodeProject, liam, "提交阶段调研报告", "汇总垃圾分类数据", TaskStatus.REVIEW, TaskPriority.HIGH);
-        taskRepository.saveAll(List.of(t1, t2, t3));
+        ensureNotification(xulaoliu, "作业已发布",
+            "新课程作业【阶段演示包】已发布，请于截止日期前提交。",
+            NotificationType.SYSTEM, NotificationSourceType.ASSIGNMENT, null, "/app/classes/" + course.getId() + "/assignments", "软件工程");
 
-        DiscussionPostEntity post = new DiscussionPostEntity();
-        post.setProject(codeProject);
-        post.setAuthor(sarah);
-        post.setTitle("本周迭代拆分建议");
-        post.setContent("建议先完成登录、项目、任务、文档闭环，再接入 Git 与 AI。") ;
-        discussionPostRepository.save(post);
-        DiscussionReplyEntity reply = new DiscussionReplyEntity();
-        reply.setPost(post);
-        reply.setAuthor(alex);
-        reply.setContent("同意，先跑通学生端核心流程。") ;
-        discussionReplyRepository.save(reply);
+        ensureNotification(alex, "作业已发布",
+            "新课程作业【阶段演示包】已发布，请于截止日期前提交。",
+            NotificationType.SYSTEM, NotificationSourceType.ASSIGNMENT, null, "/app/classes/" + course.getId() + "/assignments", "软件工程");
 
-        DocumentEntity doc = new DocumentEntity();
-        doc.setProject(codeProject);
-        doc.setTitle("系统总体设计说明");
-        doc.setExcerpt("前后端分离、协同文档与 JGit 仓库托管的一体化架构。");
-        doc.setCollabKey("project-1-doc-1");
-        doc.setCurrentContent("<h1>系统总体设计说明</h1><p>这是一个支持团队、项目、任务、文档、讨论、Git 与 AI 的课程协作平台。</p>");
-        documentRepository.save(doc);
-
-        AssignmentEntity assignment = new AssignmentEntity();
-        assignment.setProject(codeProject);
-        assignment.setTitle("阶段性演示包");
-        assignment.setSummary("提交数据库设计、原型、代码仓库与演示录像。") ;
-        assignment.setSubmissionUrl("https://educollab.local/submission/demo");
-        assignmentRepository.save(assignment);
-
-        TeacherFeedbackEntity feedback = new TeacherFeedbackEntity();
-        feedback.setProject(codeProject);
-        feedback.setTeacher(teacher);
-        feedback.setScore(90);
-        feedback.setContent("整体方向正确，继续补全文档版本恢复和教师端评分闭环。") ;
-        teacherFeedbackRepository.save(feedback);
-
-        gitService.ensureRepository(codeProject);
+        if (aiProject.getType() == ProjectType.CODE) {
+            gitService.ensureRepository(aiProject);
+        }
     }
 
-    private UserEntity user(String name, String email, UserRole role, String seed) {
-        UserEntity entity = new UserEntity();
-        entity.setName(name);
-        entity.setEmail(email);
-        entity.setRole(role);
-        entity.setAvatar("https://picsum.photos/seed/" + seed + "/100/100");
-        entity.setPasswordHash(passwordEncoder.encode("Password123!"));
-        return entity;
+    private void ensureNotification(UserEntity user, String title, String content,
+            NotificationType type, NotificationSourceType sourceType, Long sourceId, String sourcePath, String sourceLabel) {
+        NotificationEntity n = new NotificationEntity();
+        n.setUser(user);
+        n.setTitle(title);
+        n.setContent(content);
+        n.setType(type);
+        n.setSourceType(sourceType);
+        n.setSourceId(sourceId);
+        n.setSourcePath(sourcePath);
+        n.setSourceLabel(sourceLabel);
+        n.setRead(false);
+        notificationRepository.save(n);
     }
 
-    private TaskEntity task(ProjectEntity project, UserEntity assignee, String title, String description, TaskStatus status, TaskPriority priority) {
+    private UserEntity ensureUser(String name, String email, UserRole role, String seed) {
+        UserEntity user = userRepository.findByEmailIgnoreCase(email).orElseGet(UserEntity::new);
+        user.setName(name);
+        user.setEmail(email);
+        user.setRole(role);
+        if (user.getAvatar() == null || user.getAvatar().isBlank()) {
+            user.setAvatar("https://picsum.photos/seed/" + seed + "/100/100");
+        }
+        if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode("Password123!"));
+        }
+        return userRepository.save(user);
+    }
+
+    private CourseEntity ensureCourse(UserEntity teacher) {
+        CourseEntity course = courseRepository.findByTeacherId(teacher.getId()).stream().findFirst().orElseGet(CourseEntity::new);
+        course.setName("软件工程");
+        course.setTeacher(teacher);
+        if (course.getClassCode() == null || course.getClassCode().isBlank()) {
+            course.setClassCode("CLASS1");
+        }
+        return courseRepository.save(course);
+    }
+
+    private void ensureClassMember(CourseEntity course, UserEntity user, ClassMemberRole role, String joinedVia) {
+        ClassMemberEntity member = classMemberRepository.findByCourseIdAndUserId(course.getId(), user.getId()).orElseGet(ClassMemberEntity::new);
+        member.setCourse(course);
+        member.setUser(user);
+        member.setRole(role);
+        member.setJoinedVia(joinedVia);
+        classMemberRepository.save(member);
+    }
+
+    private TeamEntity ensureTeam(String name, CourseEntity course, UserEntity leader) {
+        TeamEntity team = teamRepository.findAll().stream()
+            .filter(item -> Objects.equals(item.getName(), name) && item.getCourse() != null && Objects.equals(item.getCourse().getId(), course.getId()))
+            .findFirst()
+            .orElseGet(TeamEntity::new);
+        team.setName(name);
+        team.setCourse(course);
+        team.setLeader(leader);
+        team.setStatus(TeamStatus.FORMING);
+        return teamRepository.save(team);
+    }
+
+    private void ensureTeamMember(TeamEntity team, UserEntity user) {
+        if (teamMemberRepository.findByTeamIdAndUserId(team.getId(), user.getId()).isPresent()) return;
+        TeamMemberEntity teamMember = new TeamMemberEntity();
+        teamMember.setTeam(team);
+        teamMember.setUser(user);
+        teamMemberRepository.save(teamMember);
+    }
+
+    private ProjectEntity ensureProject(String name, String description, ProjectType type, TeamEntity team, CourseEntity course, int progress) {
+        ProjectEntity project = projectRepository.findAll().stream()
+            .filter(item -> Objects.equals(item.getName(), name))
+            .findFirst()
+            .orElseGet(ProjectEntity::new);
+        project.setName(name);
+        project.setDescription(description);
+        project.setType(type);
+        project.setStatus(ProjectStatus.ACTIVE);
+        project.setProgress(progress);
+        project.setTeam(team);
+        project.setCourse(course);
+        return projectRepository.save(project);
+    }
+
+    private void ensureProjectMember(ProjectEntity project, UserEntity user, boolean owner) {
+        ProjectMemberEntity member = projectMemberRepository.findByProjectIdAndUserId(project.getId(), user.getId()).orElseGet(ProjectMemberEntity::new);
+        member.setProject(project);
+        member.setUser(user);
+        member.setOwnerFlag(owner);
+        projectMemberRepository.save(member);
+    }
+
+    private void ensureTask(ProjectEntity project, UserEntity assignee, String title, String description, TaskStatus status, TaskPriority priority) {
+        boolean exists = taskRepository.findByProjectId(project.getId()).stream().anyMatch(task -> Objects.equals(task.getTitle(), title));
+        if (exists) return;
         TaskEntity task = new TaskEntity();
         task.setProject(project);
         task.setAssignee(assignee);
@@ -161,6 +274,31 @@ public class DataInitializer implements CommandLineRunner {
         task.setDescription(description);
         task.setStatus(status);
         task.setPriority(priority);
-        return task;
+        taskRepository.save(task);
+    }
+
+    private void ensureAssignment(CourseEntity course, ProjectEntity project) {
+        boolean exists = assignmentRepository.findByCourseTeacherIdOrderByCreatedAtDesc(course.getTeacher().getId()).stream()
+            .anyMatch(item -> Objects.equals(item.getTitle(), "阶段演示包"));
+        if (exists) return;
+        AssignmentEntity assignment = new AssignmentEntity();
+        assignment.setCourse(course);
+        assignment.setProject(project);
+        assignment.setTitle("阶段演示包");
+        assignment.setSummary("提交原型说明、代码仓库与演示视频。");
+        assignment.setSubmissionUrl("https://educollab.local/submission/demo");
+        assignmentRepository.save(assignment);
+    }
+
+    private void ensureFeedback(ProjectEntity project, UserEntity teacher) {
+        boolean exists = teacherFeedbackRepository.findByProjectCourseTeacherId(teacher.getId()).stream()
+            .anyMatch(item -> item.getProject() != null && Objects.equals(item.getProject().getId(), project.getId()));
+        if (exists) return;
+        TeacherFeedbackEntity feedback = new TeacherFeedbackEntity();
+        feedback.setProject(project);
+        feedback.setTeacher(teacher);
+        feedback.setScore(90);
+        feedback.setContent("当前示例数据已补齐，可直接验证班级、团队、项目成员和仓库流程。");
+        teacherFeedbackRepository.save(feedback);
     }
 }
