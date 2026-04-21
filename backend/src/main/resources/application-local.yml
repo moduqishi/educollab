@@ -17,3 +17,7 @@ spring:
   h2:
     console:
       enabled: true
+
+app:
+  demo:
+    seed-mode: ${DEMO_SEED_MODE:ENSURE_DEMO}

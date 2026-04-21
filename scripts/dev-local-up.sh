@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RUN_DIR="$ROOT_DIR/.local-run"
 mkdir -p "$RUN_DIR"
 
+DEMO_SEED_MODE="${DEMO_SEED_MODE:-ENSURE_DEMO}"
+BACKEND_PROFILE="${BACKEND_PROFILE:-}"
+
 is_port_busy() {
   lsof -tiTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
 }
@@ -28,12 +31,18 @@ stop_managed_service() {
   rm -f "$pid_file"
 }
 
-if ! mysqladmin ping -uroot >/dev/null 2>&1; then
-  echo "[EduCollab] 本机 MySQL 未启动。请先执行: brew services start mysql"
-  exit 1
+if [[ "$BACKEND_PROFILE" != "local" ]]; then
+  if ! mysqladmin ping -uroot >/dev/null 2>&1; then
+    echo "[EduCollab] 本机 MySQL 未启动。请先执行: brew services start mysql"
+    exit 1
+  fi
+
+  "$ROOT_DIR/scripts/init-local-db.sh"
 fi
 
-"$ROOT_DIR/scripts/init-local-db.sh"
+if [[ "$DEMO_SEED_MODE" == "RESET_DEMO" && "$BACKEND_PROFILE" == "local" ]]; then
+  rm -f "$ROOT_DIR/backend/data/h2/educollab"*.mv.db "$ROOT_DIR/backend/data/h2/educollab"*.trace.db "$ROOT_DIR/backend/data/h2/educollab"*.lock.db 2>/dev/null || true
+fi
 
 stop_managed_service "collab-server"
 if is_port_busy 1234; then
@@ -60,7 +69,8 @@ else
     JWT_SECRET="educollab-demo-jwt-secret-change-me-32-bytes-minimum" \
     FILE_STORAGE_ROOT="$ROOT_DIR/backend/data/uploads" \
     GIT_REPO_ROOT="$ROOT_DIR/backend/data/repos" \
-    nohup mvn -Dmaven.repo.local=/tmp/educollab-m2 spring-boot:run >"$RUN_DIR/backend.log" 2>&1 &
+    DEMO_SEED_MODE="$DEMO_SEED_MODE" \
+    nohup mvn -Dmaven.repo.local=/tmp/educollab-m2 ${BACKEND_PROFILE:+-Dspring-boot.run.profiles=$BACKEND_PROFILE} spring-boot:run >"$RUN_DIR/backend.log" 2>&1 &
     echo $! >"$RUN_DIR/backend.pid"
   )
 fi
