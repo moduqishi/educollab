@@ -55,6 +55,7 @@ public class WorkspaceDtos {
       boolean currentUserLeader,
       boolean currentUserMember,
       boolean teacherView,
+      boolean adminView,
       List<TeamMemberRecord> members,
       TeamLinkedProjectRecord project,
       List<TeamTaskRecord> tasks
@@ -173,6 +174,7 @@ public class WorkspaceDtos {
   public record DiscussionReplyRequest(String content) {}
   public record DiscussionUpdateRequest(String status, String category) {}
   public record DocumentRecord(Long id, Long projectId, String projectName, String title, String excerpt, String updatedAt, List<String> collaborators, String collabKey, String currentContent, String kind, String officeExt, Long fileAssetId) {}
+  public record EnsureProjectFileDocumentRequest(Long projectId, String path) {}
   public record DocumentSaveRequest(Long projectId, String title, String currentContent) {}
   public record DocumentUpdateRequest(String title) {}
   public record DocumentAutosaveRequest(String currentContent, String excerpt, boolean saveVersion, String versionLabel) {}

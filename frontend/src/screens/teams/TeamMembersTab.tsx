@@ -27,7 +27,7 @@ export function TeamMembersTab() {
     onSuccess: async () => { await refresh(); },
   });
 
-  const canManage = detail.currentUserLeader && !detail.teacherView;
+  const canManage = (detail.currentUserLeader || detail.adminView) && !detail.teacherView;
 
   return (
     <div className="space-y-6">

@@ -197,7 +197,7 @@ export function Overview({ detail }: { detail: ProjectDetail }) {
           <Card className="border-muted/60">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg">最近文档</CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => nav(`/app/projects/${detail.project.id}/documents`)}>
+              <Button variant="ghost" size="sm" className="gap-1 text-xs" onClick={() => nav(`/app/projects/${detail.project.id}/files`)}>
                 查看全部 <ArrowRight size={12} />
               </Button>
             </CardHeader>

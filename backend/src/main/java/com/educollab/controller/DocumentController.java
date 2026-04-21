@@ -25,6 +25,10 @@ public class DocumentController {
     ) {
         return documentService.createOffice(projectId, title, ext, file, SecurityUtils.principal());
     }
+    @PostMapping("/from-project-file")
+    public DocumentRecord ensureDocumentFromProjectFile(@RequestBody EnsureProjectFileDocumentRequest request) {
+        return documentService.ensureDocumentFromProjectFile(request.projectId(), request.path(), SecurityUtils.principal());
+    }
     @PutMapping("/{id}") public DocumentRecord update(@PathVariable Long id, @RequestBody DocumentUpdateRequest request) { return documentService.update(id, request, SecurityUtils.principal()); }
     @GetMapping("/{id}") public DocumentRecord detail(@PathVariable Long id) { return documentService.detail(id, SecurityUtils.principal()); }
     @PostMapping("/{id}/autosave") public DocumentRecord autosave(@PathVariable Long id, @RequestBody DocumentAutosaveRequest request) { return documentService.autosave(id, request, SecurityUtils.principal()); }

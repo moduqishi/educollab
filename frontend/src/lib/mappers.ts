@@ -72,7 +72,7 @@ export function mapTask(task: TaskRecord): AppTask {
 }
 
 export function mapDocument(doc: DocumentRecord): AppDocument {
-  const kind = (doc.kind || 'NOTE') as string;
+  const kind = (doc.kind || 'MARKDOWN') as string;
   return {
     ...doc,
     preview:

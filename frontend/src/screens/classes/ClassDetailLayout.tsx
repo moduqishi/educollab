@@ -1,13 +1,14 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useParams, Navigate, useLocation } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, ClipboardList, FolderKanban, Users } from 'lucide-react';
+import { ArrowLeft, BookOpen, ClipboardList, FileText, FolderKanban, Users } from 'lucide-react';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
 import { setTitle } from '@/app/title';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { AdminOverrideBanner, useAdminOverrideState } from '@/components/admin/AdminOverrideBanner';
 import type { ClassDetail } from '@/lib/types';
 
 const ClassDetailContext = React.createContext<{
@@ -26,6 +27,7 @@ export function useClassDetail() {
 export function ClassDetailLayout() {
   const api = useApi();
   const nav = useNavigate();
+  const location = useLocation();
   const { classId } = useParams();
   const id = Number(classId);
   const qc = useQueryClient();
@@ -39,7 +41,12 @@ export function ClassDetailLayout() {
   });
 
   const detail = q.data;
-  const isTeacher = session?.profile.role === 'TEACHER';
+  const isAdmin = session?.profile.role === 'ADMIN';
+  const isTeacher = session?.profile.role === 'TEACHER' || isAdmin;
+  const adminMode = location.pathname.startsWith('/app/admin/courses/');
+  const { enabled: adminOverride } = useAdminOverrideState();
+  const basePath = adminMode ? `/app/admin/courses/${id}` : `/app/classes/${id}`;
+  const backTo = adminMode ? '/app/admin/courses' : '/app/classes';
 
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['classDetail', id] });
@@ -66,6 +73,7 @@ export function ClassDetailLayout() {
     { to: `/app/classes/${id}/teams`, label: '团队', icon: Users },
     { to: `/app/classes/${id}/projects`, label: '项目', icon: FolderKanban },
     { to: `/app/classes/${id}/assignments`, label: '作业', icon: ClipboardList },
+    { to: `/app/classes/${id}/files`, label: '文件', icon: FileText },
   ];
 
   return (
@@ -79,14 +87,15 @@ export function ClassDetailLayout() {
                   variant="ghost"
                   size="icon"
                   className="rounded-full"
-                  onClick={() => nav('/app/classes')}
-                  title="返回课程列表"
+                  onClick={() => nav(backTo)}
+                  title={adminMode ? '返回课程管理' : '返回课程列表'}
                 >
                   <ArrowLeft size={18} />
                 </Button>
                 <Badge variant="outline" className="rounded-full">
                   课程
                 </Badge>
+                {adminMode ? <Badge variant="secondary" className="rounded-full">管理员视图</Badge> : null}
               </div>
               <h1 className="mt-2 truncate text-4xl font-display font-bold tracking-tight">
                 {detail.classInfo.name}
@@ -103,11 +112,22 @@ export function ClassDetailLayout() {
             </div>
           </div>
 
+          <AdminOverrideBanner description="管理员正在课程前台界面中接管成员、团队、项目、作业和文件操作。" />
+
           <div className="mt-6 flex flex-wrap items-center gap-2 border-b pb-3">
-            {tabs.map((t) => (
+            {[
+              ...tabs.map((t) => ({
+                ...t,
+                to: `${basePath}/${t.label === '概览' ? 'overview' : t.label === '成员' ? 'members' : t.label === '团队' ? 'teams' : t.label === '项目' ? 'projects' : t.label === '作业' ? 'assignments' : 'files'}`,
+              })),
+              ...(adminMode ? [
+                { to: `${basePath}/import`, label: '导入', icon: ClipboardList },
+                { to: `${basePath}/audit`, label: '审计', icon: BookOpen },
+              ] : []),
+            ].map((t) => (
               <NavLink
                 key={t.to}
-                to={t.to}
+                to={adminOverride ? `${t.to}${location.search}` : t.to}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors',

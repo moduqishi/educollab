@@ -53,7 +53,7 @@ export function TeamWorkbench({
                 <Button size="sm" variant="outline" onClick={() => navigate(`/app/projects/${detail.projectId}/overview`)}>
                   进入项目
                 </Button>
-              ) : detail.currentUserLeader ? (
+              ) : detail.currentUserLeader || detail.adminView ? (
                 <CreateProjectDialog onSubmit={onCreateProject} />
               ) : null}
             </div>
@@ -66,7 +66,7 @@ export function TeamWorkbench({
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-base">团队成员</CardTitle>
-              {detail.currentUserLeader && !detail.teacherView ? (
+              {(detail.currentUserLeader || detail.adminView) && !detail.teacherView ? (
                 <TransferLeaderInline members={detail.members.filter((member) => !member.leader)} onSubmit={onTransferLeader} />
               ) : null}
             </div>
@@ -88,7 +88,7 @@ export function TeamWorkbench({
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3">
               <CardTitle className="text-base">队内任务</CardTitle>
-              {detail.currentUserLeader && !detail.teacherView ? <CreateTaskDialog members={detail.members} onSubmit={onCreateTask} /> : null}
+              {(detail.currentUserLeader || detail.adminView) && !detail.teacherView ? <CreateTaskDialog members={detail.members} onSubmit={onCreateTask} /> : null}
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -102,7 +102,7 @@ export function TeamWorkbench({
                       <div className="font-medium">{task.title}</div>
                       <div className="mt-1 text-xs text-muted-foreground">负责人：{task.assigneeName || '暂未指定'} · 状态：{task.status} · 截止：{task.dueDate || '未设置'}</div>
                     </div>
-                    {detail.currentUserLeader && !detail.teacherView ? (
+                    {(detail.currentUserLeader || detail.adminView) && !detail.teacherView ? (
                       <EditTaskDialog task={task} members={detail.members} onSubmit={(payload) => onUpdateTask(task.id, payload)} />
                     ) : null}
                   </div>

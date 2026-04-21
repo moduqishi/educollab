@@ -7,6 +7,7 @@ import { createChatApi } from './api-client/chat';
 import { createClassroomApi } from './api-client/classrooms';
 import { createDocumentApi } from './api-client/documents';
 import { createGitApi } from './api-client/git';
+import { createStorageApi } from './api-client/storage';
 import { createTeacherApi } from './api-client/teacher';
 import { createUserApi } from './api-client/users';
 import { createWorkspaceApi } from './api-client/workspace';
@@ -20,6 +21,7 @@ export function createApiClient(options: ApiClientOptions) {
     ...createUserApi(request),
     ...createWorkspaceApi(request),
     ...createDocumentApi(request),
+    ...createStorageApi(request),
     ...createTeacherApi(request),
     ...createGitApi(request),
     ...createChatApi(request),

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { stripHtml } from '@/lib/mappers';
+import { AdminOverrideBanner, buildAdminOverrideUrl, useAdminOverrideState } from '@/components/admin/AdminOverrideBanner';
 
 export function DocumentsPage() {
   const api = useApi();
@@ -20,6 +21,7 @@ export function DocumentsPage() {
   React.useEffect(() => setTitle(['文档']), []);
 
   const q = useQuery({ queryKey: ['documents'], queryFn: () => api.documents() });
+  const { enabled: adminOverride } = useAdminOverrideState();
   const [kw, setKw] = React.useState(params.get('q') || '');
 
   React.useEffect(() => {
@@ -39,7 +41,7 @@ export function DocumentsPage() {
     <div>
       <PageHero
         title="文档"
-        subtitle="跨项目查看协作文档，把会议纪要、方案评审和联调记录集中沉淀在这里。"
+        subtitle="跨项目查看 Markdown 协同文档与 Office 文档，把会议纪要、方案评审和联调记录集中沉淀在这里。"
         actions={
           <Button variant="outline" className="gap-2" onClick={() => nav('/app/projects')}>
             <Plus size={16} /> 去项目里新建文档
@@ -69,6 +71,7 @@ export function DocumentsPage() {
 
       <div className="px-8 pb-10">
         <div className="mx-auto max-w-[1500px]">
+          <AdminOverrideBanner description="管理员正在全局文档页中接管全部 Markdown / Office 文档。" />
           {!docs.length ? (
             <PageEmpty
               title={kw.trim() ? '没有找到匹配的文档' : '还没有文档'}
@@ -86,19 +89,19 @@ export function DocumentsPage() {
                         <CardDescription className="truncate">{d.projectName}</CardDescription>
                       </div>
                       <Badge variant="outline" className="text-[11px]">
-                        {(d.kind || 'NOTE') === 'OFFICE' ? `Office · ${(d.officeExt || 'file').toUpperCase()}` : '笔记'}
+                        {(d.kind || 'MARKDOWN') === 'OFFICE' ? `Office · ${(d.officeExt || 'file').toUpperCase()}` : 'Markdown'}
                       </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="line-clamp-3 text-sm text-muted-foreground">
-                      {(d.kind || 'NOTE') === 'OFFICE'
+                      {(d.kind || 'MARKDOWN') === 'OFFICE'
                         ? d.excerpt || `Office 文档（${d.officeExt || 'file'}）`
                         : d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '暂无内容'}
                     </div>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>更新：{d.updatedAt}</span>
-                      <Button size="sm" variant="outline" className="h-8" onClick={() => nav(`/app/projects/${d.projectId}/documents/${d.id}`)}>
+                      <Button size="sm" variant="outline" className="h-8" onClick={() => nav(adminOverride ? buildAdminOverrideUrl(`/app/projects/${d.projectId}/documents/${d.id}`, '/app/documents?adminContext=content&adminReturn=/app/admin/content') : `/app/projects/${d.projectId}/documents/${d.id}`)}>
                         打开
                       </Button>
                     </div>

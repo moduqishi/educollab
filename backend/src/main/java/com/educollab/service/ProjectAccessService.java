@@ -55,6 +55,11 @@ public class ProjectAccessService {
   }
 
   public List<ProjectEntity> visibleProjects(JwtPrincipal principal) {
+    if (principal.role() == UserRole.ADMIN) {
+      return projectRepository.findAll().stream()
+          .sorted(Comparator.comparing(ProjectEntity::getUpdatedAt).reversed())
+          .toList();
+    }
     if (principal.role() == UserRole.TEACHER) {
       return projectRepository.findByCourseTeacherId(principal.userId());
     }
@@ -72,6 +77,9 @@ public class ProjectAccessService {
   }
 
   private boolean canEdit(ProjectEntity project, JwtPrincipal principal) {
+    if (principal.role() == UserRole.ADMIN) {
+      return true;
+    }
     if (principal.role() == UserRole.TEACHER) {
       return true;
     }

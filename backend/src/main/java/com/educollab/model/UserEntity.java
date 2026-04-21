@@ -7,7 +7,8 @@ public class UserEntity extends BaseEntity {
  @Column(nullable = false, unique = true, length = 150) private String email;
  @Column(name = "password_hash", nullable = false) private String passwordHash;
  @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private UserRole role;
+ @Column(name = "active") private Boolean active = true;
  private String avatar;
  @Column(columnDefinition = "JSON") private String preferences;
- public Long getId(){return id;} public String getName(){return name;} public void setName(String name){this.name=name;} public String getEmail(){return email;} public void setEmail(String email){this.email=email;} public String getPasswordHash(){return passwordHash;} public void setPasswordHash(String passwordHash){this.passwordHash=passwordHash;} public UserRole getRole(){return role;} public void setRole(UserRole role){this.role=role;} public String getAvatar(){return avatar;} public void setAvatar(String avatar){this.avatar=avatar;} public String getPreferences(){return preferences;} public void setPreferences(String preferences){this.preferences=preferences;}
+ public Long getId(){return id;} public String getName(){return name;} public void setName(String name){this.name=name;} public String getEmail(){return email;} public void setEmail(String email){this.email=email;} public String getPasswordHash(){return passwordHash;} public void setPasswordHash(String passwordHash){this.passwordHash=passwordHash;} public UserRole getRole(){return role;} public void setRole(UserRole role){this.role=role;} public Boolean getActive(){return active;} public void setActive(Boolean active){this.active=active;} public String getAvatar(){return avatar;} public void setAvatar(String avatar){this.avatar=avatar;} public String getPreferences(){return preferences;} public void setPreferences(String preferences){this.preferences=preferences;}
 }

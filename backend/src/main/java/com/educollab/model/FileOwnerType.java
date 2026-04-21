@@ -1,5 +1,7 @@
 package com.educollab.model;
 public enum FileOwnerType {
+  COURSE,
+  TEAM,
   PROJECT,
   TASK,
   DOCUMENT,

@@ -34,6 +34,7 @@ import {
   taskTodoLabel,
   taskTodoRank,
 } from './studentTodoUtils';
+import { AdminOverrideBanner, buildAdminOverrideUrl, useAdminOverrideState } from '@/components/admin/AdminOverrideBanner';
 
 export function TasksPage() {
   const api = useApi();
@@ -41,6 +42,7 @@ export function TasksPage() {
   const qc = useQueryClient();
   const { session } = useAuth();
   const [params, setParams] = useSearchParams();
+  const { enabled: adminOverride } = useAdminOverrideState();
 
   React.useEffect(() => setTitle(['待办']), []);
 
@@ -110,7 +112,7 @@ export function TasksPage() {
   }
 
   if (!isStudent) {
-    return <LegacyTaskList tasks={tasksQ.data || []} search={search} setParam={setParam} navigate={navigate} />;
+    return <LegacyTaskList tasks={tasksQ.data || []} search={search} setParam={setParam} navigate={navigate} adminOverride={adminOverride} />;
   }
 
   const classes = classesQ.data || [];
@@ -172,6 +174,7 @@ export function TasksPage() {
 
       <div className="px-8 pb-10">
         <div className="mx-auto max-w-[1500px] space-y-6">
+          <AdminOverrideBanner description="管理员正在全局待办页中接管任务与课程作业。" />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <SummaryCard title="待处理作业" value={actionableAssignments.length} hint="待提交、草稿与已退回会优先显示" icon={ClipboardCheck} />
             <SummaryCard title="我负责的任务" value={assignedTasks.length} hint="按项目聚合展示，优先看未完成事项" icon={UserCircle2} />
@@ -341,11 +344,13 @@ function LegacyTaskList({
   search,
   setParam,
   navigate,
+  adminOverride,
 }: {
   tasks: TaskRecord[];
   search: string;
   setParam: (key: string, value?: string | null) => void;
   navigate: ReturnType<typeof useNavigate>;
+  adminOverride: boolean;
 }) {
   const filtered = tasks.filter((task) => {
     if (!search.trim()) return true;
@@ -372,8 +377,9 @@ function LegacyTaskList({
       />
       <div className="px-8 pb-10">
         <div className="mx-auto max-w-[1200px] space-y-3">
+          <AdminOverrideBanner description="管理员正在全局待办页中接管任务与课程作业。" />
           {filtered.map((task) => (
-            <TaskTodoRow key={task.id} task={task} onOpen={() => navigate(`/app/projects/${task.projectId}/tasks/${task.id}`)} />
+            <TaskTodoRow key={task.id} task={task} onOpen={() => navigate(adminOverride ? buildAdminOverrideUrl(`/app/projects/${task.projectId}/tasks/${task.id}`, '/app/tasks?adminContext=content&adminReturn=/app/admin/content') : `/app/projects/${task.projectId}/tasks/${task.id}`)} />
           ))}
           {!filtered.length ? <PageEmpty title="没有匹配的任务" message="请尝试其他关键词。" /> : null}
         </div>

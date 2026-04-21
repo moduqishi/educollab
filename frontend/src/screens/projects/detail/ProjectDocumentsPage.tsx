@@ -25,7 +25,7 @@ export function ProjectDocumentsPage() {
 
   const [kw, setKw] = React.useState('');
   const [open, setOpen] = React.useState(false);
-  const [kind, setKind] = React.useState<'NOTE' | 'OFFICE'>('NOTE');
+  const [kind, setKind] = React.useState<'MARKDOWN' | 'OFFICE'>('MARKDOWN');
   const [ext, setExt] = React.useState<'docx' | 'xlsx' | 'pptx'>('docx');
   const [title, setTitleText] = React.useState('');
   const [file, setFile] = React.useState<File | null>(null);
@@ -62,7 +62,7 @@ export function ProjectDocumentsPage() {
               setOpen(v);
               if (!v) {
                 setTitleText('');
-                setKind('NOTE');
+                setKind('MARKDOWN');
                 setExt('docx');
                 setFile(null);
               }
@@ -79,8 +79,8 @@ export function ProjectDocumentsPage() {
                 <div className="space-y-2 md:col-span-2">
                   <Label>类型</Label>
                   <div className="flex flex-wrap gap-2">
-                    <Button variant={kind === 'NOTE' ? 'default' : 'outline'} className="rounded-full" onClick={() => setKind('NOTE')} type="button">
-                      <FileText size={14} className="mr-2" /> Note
+                    <Button variant={kind === 'MARKDOWN' ? 'default' : 'outline'} className="rounded-full" onClick={() => setKind('MARKDOWN')} type="button">
+                      <FileText size={14} className="mr-2" /> Markdown
                     </Button>
                     <Button variant={kind === 'OFFICE' && ext === 'docx' ? 'default' : 'outline'} className="rounded-full" onClick={() => { setKind('OFFICE'); setExt('docx'); }} type="button">
                       <FileType size={14} className="mr-2" /> Word
@@ -116,20 +116,17 @@ export function ProjectDocumentsPage() {
                   取消
                 </Button>
                 <Button
-                  disabled={
-                    !title.trim() ||
-                    (kind === 'NOTE' ? createM.isPending : createOfficeM.isPending)
-                  }
+                  disabled={!title.trim() || (kind === 'MARKDOWN' ? createM.isPending : createOfficeM.isPending)}
                   onClick={async () => {
                     const created =
-                      kind === 'NOTE'
+                      kind === 'MARKDOWN'
                         ? await createM.mutateAsync({ projectId: detail.project.id, title: title.trim(), currentContent: '' })
                         : await createOfficeM.mutateAsync({ projectId: detail.project.id, title: title.trim(), ext, file });
                     setOpen(false);
                     nav(`/app/projects/${detail.project.id}/documents/${created.id}`);
                   }}
                 >
-                  {kind === 'NOTE'
+                  {kind === 'MARKDOWN'
                     ? createM.isPending
                       ? '正在创建…'
                       : '创建并打开'
@@ -177,13 +174,13 @@ export function ProjectDocumentsPage() {
                         <CardDescription className="truncate">{detail.project.name}</CardDescription>
                       </div>
                       <Badge variant="outline" className="text-[11px]">
-                        {(d.kind || 'NOTE') === 'OFFICE' ? `OFFICE · ${(d.officeExt || 'file').toUpperCase()}` : 'NOTE'}
+                        {(d.kind || 'MARKDOWN') === 'OFFICE' ? `OFFICE · ${(d.officeExt || 'file').toUpperCase()}` : 'MARKDOWN'}
                       </Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="text-sm text-muted-foreground line-clamp-3">
-                      {(d.kind || 'NOTE') === 'OFFICE'
+                      {(d.kind || 'MARKDOWN') === 'OFFICE'
                         ? d.excerpt || `Office 文档（${d.officeExt || 'file'}）`
                         : d.excerpt || stripHtml(d.currentContent || '').slice(0, 140) || '—'}
                     </div>

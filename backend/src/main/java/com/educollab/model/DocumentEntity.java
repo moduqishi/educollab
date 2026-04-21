@@ -9,7 +9,7 @@ public class DocumentEntity extends BaseEntity {
  @Column(nullable = false, unique = true, length = 150) private String collabKey;
  @Column(name = "current_content", columnDefinition = "LONGTEXT") private String currentContent;
 
- @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private DocumentKind kind = DocumentKind.NOTE;
+ @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private DocumentKind kind = DocumentKind.MARKDOWN;
  @Column(name = "office_ext", length = 10) private String officeExt;
  @Column(name = "file_asset_id") private Long fileAssetId;
 

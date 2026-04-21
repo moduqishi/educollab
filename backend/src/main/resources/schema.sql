@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS documents (
   excerpt TEXT,
   collab_key VARCHAR(150) NOT NULL UNIQUE,
   current_content LONGTEXT,
-  kind VARCHAR(20) NOT NULL DEFAULT 'NOTE',
+  kind VARCHAR(20) NOT NULL DEFAULT 'MARKDOWN',
   office_ext VARCHAR(10),
   file_asset_id BIGINT,
   created_at DATETIME NOT NULL,
@@ -189,6 +189,16 @@ CREATE TABLE IF NOT EXISTS file_assets (
   owner_id BIGINT NOT NULL,
   file_name VARCHAR(255) NOT NULL,
   storage_path VARCHAR(255) NOT NULL,
+  storage_node_id BIGINT,
+  storage_key VARCHAR(255),
+  relative_path VARCHAR(500),
+  course_id BIGINT,
+  team_id BIGINT,
+  project_id BIGINT,
+  space_type VARCHAR(30),
+  visibility VARCHAR(20),
+  system_managed BOOLEAN NOT NULL DEFAULT FALSE,
+  hidden_from_students BOOLEAN NOT NULL DEFAULT FALSE,
   mime_type VARCHAR(120),
   size_bytes BIGINT,
   created_at DATETIME NOT NULL,
@@ -359,3 +369,36 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS office_ext VARCHAR(10);
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_asset_id BIGINT;
 ALTER TABLE document_versions ADD COLUMN IF NOT EXISTS file_asset_id BIGINT;
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS storage_node_id BIGINT;
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS storage_key VARCHAR(255);
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS relative_path VARCHAR(500);
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS course_id BIGINT;
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS team_id BIGINT;
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS project_id BIGINT;
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS space_type VARCHAR(30);
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS visibility VARCHAR(20);
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS system_managed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS hidden_from_students BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE TABLE IF NOT EXISTS storage_nodes (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  parent_id BIGINT,
+  node_type VARCHAR(20) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  scope_type VARCHAR(20) NOT NULL,
+  scope_id BIGINT NOT NULL,
+  space_type VARCHAR(30) NOT NULL,
+  course_id BIGINT,
+  team_id BIGINT,
+  project_id BIGINT,
+  relative_path VARCHAR(500) NOT NULL,
+  system_managed BOOLEAN NOT NULL DEFAULT FALSE,
+  hidden_from_students BOOLEAN NOT NULL DEFAULT FALSE,
+  sort_order INT,
+  created_by BIGINT,
+  file_asset_id BIGINT,
+  linked_document_id BIGINT,
+  visibility VARCHAR(20) NOT NULL DEFAULT 'DEFAULT',
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL
+);

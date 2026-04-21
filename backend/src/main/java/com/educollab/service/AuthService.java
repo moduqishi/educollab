@@ -37,6 +37,9 @@ public class AuthService {
         UserEntity user = userRepository
             .findByEmailIgnoreCase(email)
             .orElseThrow(() -> new ApiException("用户不存在"));
+        if (Boolean.FALSE.equals(user.getActive())) {
+            throw new ApiException("该账号已被管理员停用");
+        }
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new ApiException("密码错误");
         }
@@ -68,6 +71,7 @@ public class AuthService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setRole(role);
+        user.setActive(true);
         user.setAvatar(null);
         userRepository.save(user);
         return issue(user);

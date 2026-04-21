@@ -7,6 +7,7 @@ import com.educollab.dto.WorkspaceDtos.ProjectMilestoneRecord;
 import com.educollab.dto.WorkspaceDtos.ProjectRecord;
 import com.educollab.dto.WorkspaceDtos.TaskRecord;
 import com.educollab.model.DocumentEntity;
+import com.educollab.model.DocumentKind;
 import com.educollab.model.DiscussionPostEntity;
 import com.educollab.model.ProjectEntity;
 import com.educollab.model.ProjectMilestoneEntity;
@@ -175,10 +176,17 @@ public class WorkspaceRecordMapper {
             collaborators,
             entity.getCollabKey(),
             entity.getCurrentContent(),
-            entity.getKind() != null ? entity.getKind().name() : "NOTE",
+            normalizeDocumentKind(entity.getKind()),
             entity.getOfficeExt(),
             entity.getFileAssetId()
         );
+    }
+
+    private String normalizeDocumentKind(DocumentKind kind) {
+        if (kind == null || kind == DocumentKind.NOTE) {
+            return DocumentKind.MARKDOWN.name();
+        }
+        return kind.name();
     }
 
     public String userAvatar(UserEntity user) {

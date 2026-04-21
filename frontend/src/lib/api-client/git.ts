@@ -13,10 +13,10 @@ export function createGitApi(request: RequestClient) {
     initRepository: (projectId: number) => request<void>(`/api/git/repositories/init/${projectId}`, { method: 'POST' }),
     branches: (projectId: number) => request<string[]>(`/api/git/projects/${projectId}/branches`),
     createBranch: (projectId: number, name: string) => request<void>('/api/git/branches', { method: 'POST', body: JSON.stringify({ projectId, name }) }),
-    commits: (projectId: number) => request<ProjectDetail['commits']>(`/api/git/projects/${projectId}/commits`),
+    commits: (projectId: number, ref?: string) => request<ProjectDetail['commits']>(`/api/git/projects/${projectId}/commits${ref ? `?ref=${encodeURIComponent(ref)}` : ''}`),
     filesTree: (projectId: number) => request<Array<{ path: string; type: string }>>(`/api/git/projects/${projectId}/files`),
-    gitTree: (projectId: number, path?: string) => request<GitTreeEntry[]>(`/api/git/projects/${projectId}/tree${path ? `?path=${encodeURIComponent(path)}` : ''}`),
-    gitBlob: (projectId: number, path: string) => request<GitBlobView>(`/api/git/projects/${projectId}/blob?path=${encodeURIComponent(path)}`),
+    gitTree: (projectId: number, path?: string, ref?: string) => request<GitTreeEntry[]>(`/api/git/projects/${projectId}/tree?${path ? `path=${encodeURIComponent(path)}&` : ''}${ref ? `ref=${encodeURIComponent(ref)}` : ''}`.replace(/[?&]$/, '')),
+    gitBlob: (projectId: number, path: string, ref?: string) => request<GitBlobView>(`/api/git/projects/${projectId}/blob?path=${encodeURIComponent(path)}${ref ? `&ref=${encodeURIComponent(ref)}` : ''}`),
     gitCloneInfo: (projectId: number) => request<GitCloneInfo>(`/api/git/projects/${projectId}/clone-info`),
     gitTokens: () => request<GitTokenItem[]>('/api/git/tokens'),
     createGitToken: (payload: { name: string; expiresInDays?: number }) =>

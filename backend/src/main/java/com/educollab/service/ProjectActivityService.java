@@ -43,6 +43,11 @@ import com.educollab.repo.ProjectRepository;
 import com.educollab.repo.UserRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -58,6 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,6 +92,7 @@ public class ProjectActivityService {
   private final ProjectAccessService projectAccessService;
   private final UserRepository userRepository;
   private final ObjectMapper objectMapper;
+  private final StoragePathService storagePathService;
   private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
   public ProjectActivityService(
@@ -99,7 +106,8 @@ public class ProjectActivityService {
       AssignmentSubmissionRepository assignmentSubmissionRepository,
       ProjectAccessService projectAccessService,
       UserRepository userRepository,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      StoragePathService storagePathService) {
     this.eventRepository = eventRepository;
     this.projectRepository = projectRepository;
     this.milestoneRepository = milestoneRepository;
@@ -111,6 +119,7 @@ public class ProjectActivityService {
     this.projectAccessService = projectAccessService;
     this.userRepository = userRepository;
     this.objectMapper = objectMapper;
+    this.storagePathService = storagePathService;
   }
 
   @Transactional
@@ -1290,7 +1299,8 @@ public class ProjectActivityService {
     entity.setDedupeKey(dedupeKey);
     entity.setDetailJson(toJson(detail));
     entity.setOccurredAt(occurredAt);
-    eventRepository.save(entity);
+    entity = eventRepository.save(entity);
+    appendProjectLog(entity);
   }
 
   private UserEntity resolveUser(Long userId) {
@@ -1308,6 +1318,37 @@ public class ProjectActivityService {
       return objectMapper.writeValueAsString(detail);
     } catch (JsonProcessingException e) {
       return String.valueOf(detail);
+    }
+  }
+
+  private void appendProjectLog(ProjectActivityEventEntity entity) {
+    if (entity == null || entity.getProject() == null) {
+      return;
+    }
+    try {
+      Path dir = storagePathService.projectActivityLogsRoot(entity.getProject());
+      Files.createDirectories(dir);
+      Path file = storagePathService.projectWeeklyActivityLogFile(entity.getProject(), entity.getOccurredAt());
+      Map<String, Object> payloadMap = new java.util.LinkedHashMap<>();
+      payloadMap.put("id", entity.getId());
+      payloadMap.put("projectId", entity.getProject().getId());
+      payloadMap.put("projectName", entity.getProject().getName());
+      payloadMap.put("courseId", entity.getCourse() != null ? entity.getCourse().getId() : null);
+      payloadMap.put("teamId", entity.getTeam() != null ? entity.getTeam().getId() : null);
+      payloadMap.put("userId", entity.getUser() != null ? entity.getUser().getId() : null);
+      payloadMap.put("userName", entity.getUser() != null ? entity.getUser().getName() : null);
+      payloadMap.put("eventType", entity.getEventType() != null ? entity.getEventType().name() : null);
+      payloadMap.put("targetType", entity.getTargetType());
+      payloadMap.put("targetId", entity.getTargetId());
+      payloadMap.put("targetTitle", entity.getTargetTitle());
+      payloadMap.put("eventCount", entity.getEventCount());
+      payloadMap.put("linesAdded", entity.getLinesAdded());
+      payloadMap.put("linesDeleted", entity.getLinesDeleted());
+      payloadMap.put("detailJson", entity.getDetailJson());
+      payloadMap.put("occurredAt", entity.getOccurredAt() != null ? formatter.format(entity.getOccurredAt()) : null);
+      String payload = objectMapper.writeValueAsString(payloadMap);
+      Files.writeString(file, payload + "\n", StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+    } catch (IOException ignored) {
     }
   }
 

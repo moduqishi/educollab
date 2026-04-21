@@ -142,16 +142,28 @@ function RepoFiles({ projectId }: { projectId: number }) {
   const { detail } = useProjectDetail();
   const [path, setPath] = React.useState('');
   const [selected, setSelected] = React.useState<string | null>(null);
+  const cloneInfoQuery = useQuery({ queryKey: ['gitCloneInfo', projectId], queryFn: () => api.gitCloneInfo(projectId) });
+  const branchesQuery = useQuery({ queryKey: ['gitBranches', projectId], queryFn: () => api.branches(projectId) });
+  const [branch, setBranch] = React.useState('');
 
-  const treeQuery = useQuery({ queryKey: ['gitTree', projectId, path], queryFn: () => api.gitTree(projectId, path || undefined) });
-  const blobQuery = useQuery({ queryKey: ['gitBlob', projectId, selected], enabled: !!selected, queryFn: () => api.gitBlob(projectId, selected!) });
+  React.useEffect(() => {
+    if (!branch && cloneInfoQuery.data?.defaultBranch) {
+      setBranch(cloneInfoQuery.data.defaultBranch);
+    }
+  }, [branch, cloneInfoQuery.data?.defaultBranch]);
 
-  if (treeQuery.isLoading) return <PageLoading label="正在加载文件列表..." />;
-  if (treeQuery.isError) return <PageError title="文件列表加载失败" onRetry={() => treeQuery.refetch()} />;
+  const effectiveBranch = branch || cloneInfoQuery.data?.defaultBranch;
+  const treeQuery = useQuery({ queryKey: ['gitTree', projectId, effectiveBranch, path], enabled: !!effectiveBranch, queryFn: () => api.gitTree(projectId, path || undefined, effectiveBranch || undefined) });
+  const blobQuery = useQuery({ queryKey: ['gitBlob', projectId, effectiveBranch, selected], enabled: !!selected && !!effectiveBranch, queryFn: () => api.gitBlob(projectId, selected!, effectiveBranch || undefined) });
+  const commitsQuery = useQuery({ queryKey: ['gitCommits', projectId, effectiveBranch], enabled: !!effectiveBranch, queryFn: () => api.commits(projectId, effectiveBranch || undefined) });
+
+  if (treeQuery.isLoading || cloneInfoQuery.isLoading || branchesQuery.isLoading || commitsQuery.isLoading) return <PageLoading label="正在加载文件列表..." />;
+  if (treeQuery.isError || cloneInfoQuery.isError || branchesQuery.isError || commitsQuery.isError) return <PageError title="文件列表加载失败" onRetry={() => { void treeQuery.refetch(); void cloneInfoQuery.refetch(); void branchesQuery.refetch(); void commitsQuery.refetch(); }} />;
 
   const entries = (treeQuery.data || []).slice().sort((left, right) => (left.type === right.type ? left.name.localeCompare(right.name) : left.type === 'directory' ? -1 : 1));
   const breadcrumb = path ? path.split('/').filter(Boolean) : [];
-  const latest = detail.commits?.[0];
+  const latest = commitsQuery.data?.[0] || detail.commits?.[0];
+  const branches = branchesQuery.data || [];
 
   return (
     <div className="space-y-4">
@@ -168,6 +180,11 @@ function RepoFiles({ projectId }: { projectId: number }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-1 border-b bg-white px-4 py-3">
+            {branches.map((item) => (
+              <Button key={item} size="sm" variant={effectiveBranch === item ? 'default' : 'outline'} className="h-7 rounded-full" onClick={() => { setBranch(item); setPath(''); setSelected(null); }}>
+                {item}
+              </Button>
+            ))}
             <Button size="sm" variant="outline" className="h-7 rounded-full" onClick={() => { setPath(''); setSelected(null); }}>
               根目录
             </Button>
@@ -180,6 +197,7 @@ function RepoFiles({ projectId }: { projectId: number }) {
               );
             })}
             <div className="ml-auto text-xs text-muted-foreground">
+              {effectiveBranch ? <>分支：<code className="rounded bg-muted px-1 py-0.5">{effectiveBranch}</code> · </> : null}
               当前路径：<code className="rounded bg-muted px-1 py-0.5">{path || '/'}</code>
             </div>
           </div>
@@ -439,10 +457,28 @@ function CloneRepoButton({ projectId, projectName }: { projectId: number; projec
 }
 
 function RepoCommits() {
+  const api = useApi();
   const { detail } = useProjectDetail();
-  const commits = detail.commits || [];
+  const projectId = detail.project.id;
+  const cloneInfoQuery = useQuery({ queryKey: ['gitCloneInfo', projectId], queryFn: () => api.gitCloneInfo(projectId) });
+  const branchesQuery = useQuery({ queryKey: ['gitBranches', projectId], queryFn: () => api.branches(projectId) });
+  const [branch, setBranch] = React.useState('');
+  React.useEffect(() => {
+    if (!branch && cloneInfoQuery.data?.defaultBranch) setBranch(cloneInfoQuery.data.defaultBranch);
+  }, [branch, cloneInfoQuery.data?.defaultBranch]);
+  const effectiveBranch = branch || cloneInfoQuery.data?.defaultBranch;
+  const commitsQuery = useQuery({ queryKey: ['gitCommits', projectId, effectiveBranch], enabled: !!effectiveBranch, queryFn: () => api.commits(projectId, effectiveBranch || undefined) });
+  const commits = commitsQuery.data || [];
+  const branches = branchesQuery.data || [];
   return (
     <div className="p-6">
+      <div className="mb-4 flex flex-wrap gap-2">
+        {branches.map((item) => (
+          <Button key={item} size="sm" variant={effectiveBranch === item ? 'default' : 'outline'} onClick={() => setBranch(item)}>
+            {item}
+          </Button>
+        ))}
+      </div>
       {!commits.length ? (
         <PageEmpty title="暂无提交记录" message="仓库产生提交后，这里会展示完整的提交历史。" icon={GitCommit} />
       ) : (

@@ -170,7 +170,7 @@ export function TeamOverviewTab() {
                 </button>
                 <div className="text-xs text-muted-foreground">目前每个团队默认只关联 1 个项目，这里按“项目名称列表”样式展示。</div>
               </div>
-            ) : detail.currentUserLeader && !detail.teacherView ? (
+            ) : (detail.currentUserLeader || detail.adminView) && !detail.teacherView ? (
               <CreateProjectDialog onSubmit={p => createProjectM.mutateAsync(p)} />
             ) : (
               <div className="rounded-xl bg-muted/30 p-4 text-sm text-muted-foreground text-center">

@@ -19,5 +19,8 @@ public class GlobalExceptionHandler {
     return ResponseEntity.status(ex.getStatusCode()).body(Map.of("message", msg));
   }
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<Map<String, String>> handleOther(Exception ex) { return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", ex.getMessage())); }
+  public ResponseEntity<Map<String, String>> handleOther(Exception ex) {
+    String message = ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : ex.getClass().getSimpleName();
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", message));
+  }
 }

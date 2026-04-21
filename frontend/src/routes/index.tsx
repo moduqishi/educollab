@@ -10,7 +10,8 @@ import { ProjectReportsPage } from '@/screens/projects/detail/ProjectReportsPage
 import { ProjectTasksPage } from '@/screens/projects/detail/ProjectTasksPage';
 import { ProjectTaskCreatePage } from '@/screens/projects/detail/ProjectTaskCreatePage';
 import { ProjectTaskEditPage } from '@/screens/projects/detail/ProjectTaskEditPage';
-import { ProjectDocumentsPage } from '@/screens/projects/detail/ProjectDocumentsPage';
+import { ProjectFilesPage } from '@/screens/projects/detail/ProjectFilesPage';
+import { ProjectFileViewerPage } from '@/screens/projects/detail/ProjectFileViewerPage';
 import { DocumentWorkspacePage } from '@/screens/projects/detail/DocumentWorkspacePage';
 import { ProjectRepositoryPage } from '@/screens/projects/detail/ProjectRepositoryPage';
 import { ProjectDiscussionsListPage } from '@/screens/projects/discussions/ProjectDiscussionsListPage';
@@ -23,6 +24,7 @@ import { ClassDetailLayout } from '@/screens/classes/ClassDetailLayout';
 import { ClassOverviewTab } from '@/screens/classes/ClassOverviewTab';
 import { ClassMembersTabPage } from '@/screens/classes/ClassMembersTabPage';
 import { ClassAssignmentsTabPage } from '@/screens/classes/ClassAssignmentsTabPage';
+import { ClassFilesTabPage } from '@/screens/classes/ClassFilesTabPage';
 import { ClassAssignmentDetailPage } from '@/screens/classes/ClassAssignmentDetailPage';
 import { ClassTeamsTabPage } from '@/screens/classes/ClassTeamsTabPage';
 import { ClassProjectsTabPage } from '@/screens/classes/ClassProjectsTabPage';
@@ -44,6 +46,7 @@ import { TeacherContributionsPage } from '@/screens/teacher/TeacherContributions
 import { RouteError } from '@/screens/common/RouteError';
 import { TeamsPage } from '@/screens/teams/TeamsPage';
 import { TeamDetailLayout } from '@/screens/teams/TeamDetailLayout';
+import { TeamFilesTabPage } from '@/screens/teams/TeamFilesTabPage';
 import { TeamOverviewTab } from '@/screens/teams/TeamOverviewTab';
 import { TeamMembersTab } from '@/screens/teams/TeamMembersTab';
 import { TeamProjectsTab } from '@/screens/teams/TeamProjectsTab';
@@ -56,6 +59,24 @@ import { AdminProjectsPage } from '@/screens/admin/AdminProjectsPage';
 import { AdminTasksPage } from '@/screens/admin/AdminTasksPage';
 import { AdminDiscussionsPage } from '@/screens/admin/AdminDiscussionsPage';
 import { AdminAssignmentsPage } from '@/screens/admin/AdminAssignmentsPage';
+import { AdminTeamsPage } from '@/screens/admin/AdminTeamsPage';
+import { AdminUserDetailPage } from '@/screens/admin/AdminUserDetailPage';
+import { AdminCourseImportPage } from '@/screens/admin/AdminCourseImportPage';
+import { AdminAuditTrailPage } from '@/screens/admin/AdminAuditTrailPage';
+import { AdminContentLayout } from '@/screens/admin/AdminContentLayout';
+import { AdminDocumentsPage } from '@/screens/admin/AdminDocumentsPage';
+import { AdminImportsPage } from '@/screens/admin/AdminImportsPage';
+import { AdminSystemPage } from '@/screens/admin/AdminSystemPage';
+import { AdminStoragePage } from '@/screens/admin/AdminStoragePage';
+import { AdminCourseDetailPage } from '@/screens/admin/AdminCourseDetailPage';
+import { AdminTeamDetailPage } from '@/screens/admin/AdminTeamDetailPage';
+import { AdminProjectDetailPage } from '@/screens/admin/AdminProjectDetailPage';
+import { AdminContentHubPage } from '@/screens/admin/AdminContentHubPage';
+import { AdminContentCoursesPage } from '@/screens/admin/AdminContentCoursesPage';
+import { AdminContentTeamsPage } from '@/screens/admin/AdminContentTeamsPage';
+import { AdminContentProjectsPage } from '@/screens/admin/AdminContentProjectsPage';
+import { AdminContentFilesPage } from '@/screens/admin/AdminContentFilesPage';
+import { AdminContentRepositoriesPage } from '@/screens/admin/AdminContentRepositoriesPage';
 
 export const routes = createBrowserRouter([
   { path: '/', element: <Navigate to="/login" replace />, errorElement: <RouteError /> },
@@ -81,7 +102,8 @@ export const routes = createBrowserRouter([
           { path: 'tasks/:taskId', element: <ProjectTaskEditPage /> },
           { path: 'discussions', element: <ProjectDiscussionsListPage /> },
           { path: 'discussions/:postId', element: <ProjectDiscussionDetailPage /> },
-          { path: 'documents', element: <ProjectDocumentsPage /> },
+          { path: 'files', element: <ProjectFilesPage /> },
+          { path: 'documents', element: <Navigate to="../files" replace /> },
           { path: 'documents/:docId', element: <DocumentWorkspacePage /> },
           // redirect /repository -> /repository/files (avoid duplicated /repository/repository/files)
           { path: 'repository', element: <Navigate to="files" replace /> },
@@ -102,6 +124,7 @@ export const routes = createBrowserRouter([
           { path: 'teams', element: <ClassTeamsTabPage /> },
           { path: 'projects', element: <ClassProjectsTabPage /> },
           { path: 'assignments', element: <ClassAssignmentsTabPage /> },
+          { path: 'files', element: <ClassFilesTabPage /> },
           { path: 'assignments/:assignmentId', element: <ClassAssignmentDetailPage /> },
         ],
       },
@@ -116,12 +139,14 @@ export const routes = createBrowserRouter([
           { path: 'projects', element: <TeamProjectsTab /> },
           { path: 'tasks', element: <TeamTasksTab /> },
           { path: 'reports', element: <TeamReportsTab /> },
+          { path: 'files', element: <TeamFilesTabPage /> },
         ],
       },
       { path: 'tasks', element: <TasksPage /> },
       { path: 'tasks/new', element: <TaskCreatePage /> },
       { path: 'tasks/:taskId', element: <TaskEditPage /> },
       { path: 'documents', element: <DocumentsPage /> },
+      { path: 'files/view', element: <ProjectFileViewerPage /> },
       { path: 'discussions', element: <DiscussionsPage /> },
       { path: 'ai', element: <AiPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
@@ -135,11 +160,36 @@ export const routes = createBrowserRouter([
       { path: 'teacher/contributions', element: <TeacherContributionsPage /> },
       { path: 'admin', element: <AdminDashboardPage /> },
       { path: 'admin/users', element: <AdminUsersPage /> },
+      { path: 'admin/users/:userId', element: <AdminUserDetailPage /> },
       { path: 'admin/courses', element: <AdminCoursesPage /> },
+      { path: 'admin/courses/:classId/*', element: <AdminCourseDetailPage /> },
+      { path: 'admin/teams', element: <AdminTeamsPage /> },
+      { path: 'admin/teams/:teamId/*', element: <AdminTeamDetailPage /> },
       { path: 'admin/projects', element: <AdminProjectsPage /> },
-      { path: 'admin/tasks', element: <AdminTasksPage /> },
-      { path: 'admin/discussions', element: <AdminDiscussionsPage /> },
-      { path: 'admin/assignments', element: <AdminAssignmentsPage /> },
+      { path: 'admin/projects/:projectId/*', element: <AdminProjectDetailPage /> },
+      {
+        path: 'admin/content',
+        element: <AdminContentLayout />,
+        children: [
+          { path: '', element: <AdminContentHubPage /> },
+          { path: 'courses', element: <AdminContentCoursesPage /> },
+          { path: 'teams', element: <AdminContentTeamsPage /> },
+          { path: 'projects', element: <AdminContentProjectsPage /> },
+          { path: 'tasks', element: <AdminTasksPage /> },
+          { path: 'discussions', element: <AdminDiscussionsPage /> },
+          { path: 'assignments', element: <AdminAssignmentsPage /> },
+          { path: 'documents', element: <AdminDocumentsPage /> },
+          { path: 'files', element: <AdminContentFilesPage /> },
+          { path: 'repositories', element: <AdminContentRepositoriesPage /> },
+        ],
+      },
+      { path: 'admin/storage', element: <AdminStoragePage /> },
+      { path: 'admin/imports', element: <AdminImportsPage /> },
+      { path: 'admin/system', element: <AdminSystemPage /> },
+      { path: 'admin/system/audit', element: <AdminAuditTrailPage /> },
+      { path: 'admin/tasks', element: <Navigate to="/app/admin/content/tasks" replace /> },
+      { path: 'admin/discussions', element: <Navigate to="/app/admin/content/discussions" replace /> },
+      { path: 'admin/assignments', element: <Navigate to="/app/admin/content/assignments" replace /> },
     ],
   },
 ]);

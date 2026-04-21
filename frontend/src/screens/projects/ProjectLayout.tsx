@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { AdminOverrideBanner, useAdminOverrideState } from '@/components/admin/AdminOverrideBanner';
 import type { ProjectDetail } from '@/lib/types';
 
 const ProjectDetailContext = React.createContext<{
@@ -38,11 +39,16 @@ export function ProjectLayout() {
   });
 
   const detail = q.data;
-  const backTo = detail?.project.teamId
-    ? `/app/teams/${detail.project.teamId}/overview`
-    : detail?.project.courseId
-      ? `/app/projects?courseId=${detail.project.courseId}`
-      : '/app/projects';
+  const adminMode = location.pathname.startsWith('/app/admin/projects/');
+  const { enabled: adminOverride } = useAdminOverrideState();
+  const basePath = adminMode ? `/app/admin/projects/${id}` : `/app/projects/${id}`;
+  const backTo = adminMode
+    ? '/app/admin/projects'
+    : detail?.project.teamId
+      ? `/app/teams/${detail.project.teamId}/overview`
+      : detail?.project.courseId
+        ? `/app/projects?courseId=${detail.project.courseId}`
+        : '/app/projects';
 
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['projectDetail', id] });
@@ -67,15 +73,16 @@ export function ProjectLayout() {
   const isCode = detail.project.type === 'CODE';
 
   const tabs = [
-    { to: `/app/projects/${id}/overview`, label: '概览', icon: BarChart3 },
-    { to: `/app/projects/${id}/tasks`, label: '任务', icon: CheckSquare },
-    { to: `/app/projects/${id}/reports`, label: '总结', icon: FileText },
-    { to: `/app/projects/${id}/discussions`, label: '讨论', icon: MessageSquare },
-    { to: `/app/projects/${id}/documents`, label: '文档', icon: FileText },
-    { to: `/app/projects/${id}/messages`, label: '消息', icon: MessageSquare },
-    ...(isCode ? [{ to: `/app/projects/${id}/repository/files`, label: '仓库', icon: GitBranch }] : []),
-    ...(isCode ? [{ to: `/app/projects/${id}/releases`, label: '发布', icon: Package }] : []),
-    { to: `/app/projects/${id}/members`, label: '成员', icon: Users },
+    { to: `${basePath}/overview`, label: '概览', icon: BarChart3 },
+    { to: `${basePath}/tasks`, label: '任务', icon: CheckSquare },
+    { to: `${basePath}/reports`, label: '总结', icon: FileText },
+    { to: `${basePath}/discussions`, label: '讨论', icon: MessageSquare },
+    { to: `${basePath}/files`, label: '文件', icon: FileText },
+    { to: `${basePath}/messages`, label: '消息', icon: MessageSquare },
+    ...(isCode ? [{ to: `${basePath}/repository/files`, label: '仓库', icon: GitBranch }] : []),
+    ...(isCode ? [{ to: `${basePath}/releases`, label: '发布', icon: Package }] : []),
+    { to: `${basePath}/members`, label: '成员', icon: Users },
+    ...(adminMode ? [{ to: `${basePath}/audit`, label: '审计', icon: Settings }] : []),
   ];
 
   return (
@@ -85,12 +92,13 @@ export function ProjectLayout() {
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav(backTo)} title={detail.project.teamId ? '返回所属团队' : '返回项目列表'}>
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav(backTo)} title={adminMode ? '返回项目管理' : detail.project.teamId ? '返回所属团队' : '返回项目列表'}>
                   <ArrowLeft size={18} />
                 </Button>
                 <Badge variant="outline" className="rounded-full">
                   {isCode ? '代码项目' : '非代码项目'}
                 </Badge>
+                {adminMode ? <Badge variant="secondary" className="rounded-full">管理员视图</Badge> : null}
                 {!detail?.currentUserCanEdit ? <Badge variant="secondary" className="rounded-full">只读查看</Badge> : null}
                 <span className="truncate">{detail.project.courseName || '未关联课程'}</span>
                 {detail.project.teamName ? <span className="truncate">/ {detail.project.teamName}</span> : null}
@@ -151,11 +159,13 @@ export function ProjectLayout() {
             </div>
           </div>
 
+          <AdminOverrideBanner description="管理员正在项目前台界面中接管任务、讨论、文件、仓库、成员与总结。" />
+
           <div className="mt-6 flex flex-wrap items-center gap-2 border-b pb-3">
             {tabs.map((t) => (
               <NavLink
                 key={t.to}
-                to={t.to}
+                to={adminOverride ? `${t.to}${location.search}` : t.to}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors',

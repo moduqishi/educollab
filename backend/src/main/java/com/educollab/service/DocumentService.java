@@ -29,9 +29,10 @@ public class DocumentService {
     private final FileStorageService fileStorageService;
     private final FileAssetRepository fileAssetRepository;
     private final ProjectActivityService projectActivityService;
+    private final StorageService storageService;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    public DocumentService(DocumentRepository documentRepository, DocumentVersionRepository documentVersionRepository, ProjectRepository projectRepository, WorkspaceService workspaceService, AuthService authService, NotificationService notificationService, FileStorageService fileStorageService, FileAssetRepository fileAssetRepository, ProjectActivityService projectActivityService) {
+    public DocumentService(DocumentRepository documentRepository, DocumentVersionRepository documentVersionRepository, ProjectRepository projectRepository, WorkspaceService workspaceService, AuthService authService, NotificationService notificationService, FileStorageService fileStorageService, FileAssetRepository fileAssetRepository, ProjectActivityService projectActivityService, StorageService storageService) {
         this.documentRepository = documentRepository;
         this.documentVersionRepository = documentVersionRepository;
         this.projectRepository = projectRepository;
@@ -41,6 +42,7 @@ public class DocumentService {
         this.fileStorageService = fileStorageService;
         this.fileAssetRepository = fileAssetRepository;
         this.projectActivityService = projectActivityService;
+        this.storageService = storageService;
     }
 
     @Transactional
@@ -52,8 +54,9 @@ public class DocumentService {
         entity.setCurrentContent(request.currentContent());
         entity.setExcerpt(excerpt(request.currentContent()));
         entity.setCollabKey("doc-" + UUID.randomUUID());
-        entity.setKind(DocumentKind.NOTE);
+        entity.setKind(DocumentKind.MARKDOWN);
         documentRepository.save(entity);
+        storageService.syncProjectDocumentNodes(project.getId());
         projectActivityService.recordDocumentCreated(project, entity.getId(), entity.getTitle(), principal.userId(), entity.getCreatedAt());
         return workspaceService.toDocumentRecord(entity);
     }
@@ -63,7 +66,7 @@ public class DocumentService {
         ProjectEntity project = workspaceService.requireProjectEditable(projectId, principal);
         if (title == null || title.isBlank()) throw new ApiException("title 不能为空");
         String normalizedExt = (ext == null ? "" : ext.trim().toLowerCase());
-        if (!List.of("docx", "xlsx", "pptx").contains(normalizedExt)) throw new ApiException("ext 仅支持 docx/xlsx/pptx");
+        if (!List.of("docx", "doc", "xlsx", "xls", "pptx", "ppt").contains(normalizedExt)) throw new ApiException("ext 仅支持 doc/docx/xls/xlsx/ppt/pptx");
 
         DocumentEntity entity = new DocumentEntity();
         entity.setProject(project);
@@ -81,6 +84,7 @@ public class DocumentService {
             : storeOfficeTemplate(entity.getId(), entity.getTitle(), normalizedExt);
         entity.setFileAssetId(stored.id());
         documentRepository.save(entity);
+        storageService.syncProjectDocumentNodes(project.getId());
         projectActivityService.recordDocumentCreated(project, entity.getId(), entity.getTitle(), principal.userId(), entity.getCreatedAt());
 
         return workspaceService.toDocumentRecord(entity);
@@ -91,18 +95,39 @@ public class DocumentService {
         String resourcePath = "office-templates/blank." + ext;
         String mime = switch (ext) {
             case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "doc" -> "application/msword";
             case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "xls" -> "application/vnd.ms-excel";
             case "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "ppt" -> "application/vnd.ms-powerpoint";
             default -> "application/octet-stream";
         };
         try {
+            byte[] bytes;
             ClassPathResource res = new ClassPathResource(resourcePath);
-            if (!res.exists()) throw new ApiException("内置模板缺失: " + resourcePath);
-            byte[] bytes = res.getInputStream().readAllBytes();
+            if (res.exists()) {
+                bytes = res.getInputStream().readAllBytes();
+            } else {
+                String fallback = switch (ext) {
+                    case "doc" -> "office-templates/blank.docx";
+                    case "xls" -> "office-templates/blank.xlsx";
+                    case "ppt" -> "office-templates/blank.pptx";
+                    default -> resourcePath;
+                };
+                ClassPathResource fallbackRes = new ClassPathResource(fallback);
+                if (!fallbackRes.exists()) throw new ApiException("内置模板缺失: " + resourcePath);
+                bytes = fallbackRes.getInputStream().readAllBytes();
+            }
             return fileStorageService.storeBytes(bytes, filename, mime, FileOwnerType.DOCUMENT, documentId);
         } catch (IOException e) {
             throw new ApiException("读取内置模板失败: " + e.getMessage());
         }
+    }
+
+    @Transactional
+    public DocumentRecord ensureDocumentFromProjectFile(Long projectId, String path, JwtPrincipal principal) {
+        ProjectEntity project = workspaceService.requireProjectEditable(projectId, principal);
+        return workspaceService.toDocumentRecord(storageService.ensureDocumentFromProjectFile(project, path, principal.userId()));
     }
 
     @Transactional
@@ -113,6 +138,7 @@ public class DocumentService {
             entity.setTitle(request.title().trim());
         }
         documentRepository.save(entity);
+        storageService.syncProjectDocumentNodes(entity.getProject().getId());
         return workspaceService.toDocumentRecord(entity);
     }
 
@@ -129,6 +155,7 @@ public class DocumentService {
         entity.setCurrentContent(request.currentContent());
         entity.setExcerpt(request.excerpt() != null && !request.excerpt().isBlank() ? request.excerpt() : excerpt(request.currentContent()));
         documentRepository.save(entity);
+        storageService.syncProjectDocumentNodes(entity.getProject().getId());
         if (request.saveVersion()) saveVersion(documentId, request.versionLabel() == null || request.versionLabel().isBlank() ? "手动版本" : request.versionLabel(), request.currentContent(), principal);
         workspaceService.projectDetail(entity.getProject().getId(), principal).members().stream().filter(member -> !member.id().equals(principal.userId())).forEach(member -> notificationService.create(
             authService.getUser(member.id()),
@@ -198,6 +225,7 @@ public class DocumentService {
             doc.setExcerpt(excerpt(version.getSnapshotContent()));
         }
         documentRepository.save(doc);
+        storageService.syncProjectDocumentNodes(doc.getProject().getId());
         return workspaceService.toDocumentRecord(doc);
     }
 
@@ -224,6 +252,7 @@ public class DocumentService {
         entity.setFileAssetId(stored.id());
         entity.setExcerpt("");
         documentRepository.save(entity);
+        storageService.syncProjectDocumentNodes(entity.getProject().getId());
 
         return workspaceService.toDocumentRecord(entity);
     }
@@ -238,6 +267,7 @@ public class DocumentService {
         documentVersionRepository.deleteByDocumentId(entity.getId());
         // delete document
         documentRepository.delete(entity);
+        storageService.syncProjectDocumentNodes(entity.getProject().getId());
     }
 
     private String excerpt(String html) {

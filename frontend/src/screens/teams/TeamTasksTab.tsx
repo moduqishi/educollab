@@ -122,7 +122,7 @@ export function TeamTasksTab() {
             </div>
             <div className="mt-4 text-lg font-semibold">当前团队还没有项目</div>
             <div className="mt-2 text-sm text-muted-foreground">先创建项目，系统会自动生成默认阶段里程碑，后续任务会挂在阶段树下面。</div>
-            {detail.currentUserLeader && !detail.teacherView ? (
+            {(detail.currentUserLeader || detail.adminView) && !detail.teacherView ? (
               <div className="mt-5">
                 <CreateProjectDialog onSubmit={(payload) => createProjectM.mutateAsync(payload)} />
               </div>

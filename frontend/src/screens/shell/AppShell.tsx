@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
-import { BarChart3, Bell, Bot, CheckSquare, ClipboardCheck, FileText, FolderKanban, GraduationCap, LayoutDashboard, LogOut, MessageSquare, MessagesSquare, Settings, UserCircle2, Users } from 'lucide-react';
+import { BarChart3, Bell, Bot, CheckSquare, ClipboardCheck, FileText, FolderInput, FolderKanban, GraduationCap, LayoutDashboard, LogOut, MessageSquare, MessagesSquare, Settings, Shield, UserCircle2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -89,10 +89,12 @@ export function AppShell() {
     { to: '/app/admin', label: '系统概览', icon: LayoutDashboard },
     { to: '/app/admin/users', label: '用户管理', icon: Users },
     { to: '/app/admin/courses', label: '课程管理', icon: GraduationCap },
+    { to: '/app/admin/teams', label: '团队管理', icon: Users },
     { to: '/app/admin/projects', label: '项目管理', icon: FolderKanban },
-    { to: '/app/admin/tasks', label: '任务管理', icon: CheckSquare },
-    { to: '/app/admin/discussions', label: '讨论管理', icon: MessageSquare },
-    { to: '/app/admin/assignments', label: '作业管理', icon: ClipboardCheck },
+    { to: '/app/admin/storage', label: '文件与存储', icon: FileText },
+    { to: '/app/admin/imports', label: '导入与维护', icon: FolderInput },
+    { to: '/app/admin/system', label: '系统控制', icon: Shield },
+    { to: '/app/admin/content', label: '内容治理', icon: CheckSquare },
   ];
 
   const navItems = isAdmin ? adminNav : isTeacher ? teacherNav : studentNav;

@@ -143,6 +143,7 @@ export interface TeamDetailRecord {
   currentUserLeader: boolean;
   currentUserMember: boolean;
   teacherView: boolean;
+  adminView?: boolean;
   members: TeamMemberRecord[];
   project?: TeamLinkedProjectRecord | null;
   tasks: TeamTaskRecord[];
@@ -278,7 +279,7 @@ export interface DocumentRecord {
   collaborators: string[];
   collabKey: string;
   currentContent: string | null;
-  kind?: 'NOTE' | 'OFFICE' | string;
+  kind?: 'MARKDOWN' | 'OFFICE' | string;
   officeExt?: 'docx' | 'xlsx' | 'pptx' | string | null;
   fileAssetId?: number | null;
 }
@@ -748,6 +749,7 @@ export interface GroupTaskTeamDetail {
   currentUserLeader: boolean;
   currentUserMember: boolean;
   teacherView: boolean;
+  adminView?: boolean;
   members: GroupTaskTeamMember[];
   tasks: GroupTaskSubTaskRecord[];
 }
@@ -795,11 +797,92 @@ export interface WeeklyReportRecord {
 export interface FileAssetRecord {
   id: number;
   fileName: string;
-  ownerType: 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST' | 'ASSIGNMENT_SUBMISSION';
+  ownerType: 'COURSE' | 'TEAM' | 'PROJECT' | 'TASK' | 'DOCUMENT' | 'DISCUSSION_POST' | 'ASSIGNMENT_SUBMISSION' | 'CHAT_MESSAGE';
   ownerId: number;
   mimeType: string;
   sizeBytes: number;
   createdAt: string;
+}
+
+export interface StorageTreeNodeRecord {
+  path: string;
+  name: string;
+  nodeType: 'FOLDER' | 'FILE' | 'SYSTEM_FOLDER' | string;
+  entryKind?: 'FOLDER' | 'FILE' | 'DOCUMENT' | 'VIRTUAL_FOLDER' | string;
+  readOnly?: boolean;
+  systemManaged: boolean;
+  hiddenFromStudents: boolean;
+  children: StorageTreeNodeRecord[];
+}
+
+export interface StorageEntryRecord {
+  path: string;
+  parentPath?: string | null;
+  nodeType: 'FOLDER' | 'FILE' | 'SYSTEM_FOLDER' | string;
+  name: string;
+  relativePath: string;
+  mimeType?: string | null;
+  sizeBytes?: number | null;
+  updatedAt?: string | null;
+  modifiedByName?: string | null;
+  fileAssetId?: number | null;
+  linkedDocumentId?: number | null;
+  entryKind?: 'FOLDER' | 'FILE' | 'DOCUMENT' | 'VIRTUAL_FOLDER' | string;
+  documentKind?: 'MARKDOWN' | 'OFFICE' | string | null;
+  officeExt?: 'docx' | 'xlsx' | 'pptx' | string | null;
+  projectId?: number | null;
+  projectName?: string | null;
+  openPath?: string | null;
+  readOnly?: boolean;
+  systemManaged: boolean;
+  hiddenFromStudents: boolean;
+  downloadable: boolean;
+  editable: boolean;
+  deletable: boolean;
+  movable: boolean;
+  virtualDocument: boolean;
+}
+
+export interface StoragePermissionRecord {
+  canCreateFolder: boolean;
+  canUpload: boolean;
+  canRename: boolean;
+  canDelete: boolean;
+  canMove: boolean;
+  canDownload: boolean;
+  canViewSystem: boolean;
+}
+
+export interface StorageBreadcrumbRecord {
+  path: string;
+  name: string;
+}
+
+export interface StorageToolbarCapabilityRecord {
+  canCreateFolder: boolean;
+  canUpload: boolean;
+  canRename: boolean;
+  canDelete: boolean;
+  canMove: boolean;
+  canDownload: boolean;
+}
+
+export interface StorageWorkspaceRecord {
+  scopeType: string;
+  scopeId: number;
+  scopeName: string;
+  rootPath: string;
+  permissions: StoragePermissionRecord;
+  toolbar: StorageToolbarCapabilityRecord;
+  tree: StorageTreeNodeRecord[];
+}
+
+export interface StorageFolderRecord {
+  folderPath: string;
+  folderName: string;
+  breadcrumbs: StorageBreadcrumbRecord[];
+  readOnly?: boolean;
+  entries: StorageEntryRecord[];
 }
 
 export interface AiReply {
@@ -853,13 +936,100 @@ export interface AdminStats {
   totalAssignments: number;
 }
 
+export interface AdminMetricRecord {
+  key: string;
+  label: string;
+  value: string;
+  hint?: string | null;
+}
+
+export interface AdminHealthRecord {
+  key: string;
+  label: string;
+  status: string;
+  detail?: string | null;
+  checkedAt?: string | null;
+}
+
+export interface AdminSystemResourceRecord {
+  key: string;
+  label: string;
+  value: string;
+  unit?: string | null;
+  used?: number | null;
+  total?: number | null;
+  usagePercent?: number | null;
+  status: string;
+  hint?: string | null;
+}
+
+export interface AdminIssueRecord {
+  key: string;
+  title: string;
+  detail: string;
+  href?: string | null;
+  level?: string | null;
+}
+
+export interface AdminActivityRecord {
+  title: string;
+  detail: string;
+  createdAt: string;
+  href?: string | null;
+}
+
+export interface AdminOverviewRecord {
+  metrics: AdminMetricRecord[];
+  resourceMetrics: AdminSystemResourceRecord[];
+  healthChecks: AdminHealthRecord[];
+  pendingItems: AdminIssueRecord[];
+  recentActivities: AdminActivityRecord[];
+  checkedAt?: string | null;
+}
+
 export interface AdminUserSummary {
   id: number;
   name: string;
   email: string;
   role: BackendRole;
+  active?: boolean;
   avatar?: string;
+  courseCount?: number;
+  teamCount?: number;
+  projectCount?: number;
+  lastActiveAt?: string | null;
   createdAt: string;
+}
+
+export interface UserAssignmentDigest {
+  submissionId: number;
+  assignmentId: number;
+  assignmentTitle: string;
+  status: string;
+  score?: number | null;
+  submittedAt?: string | null;
+}
+
+export interface AdminAuditRecord {
+  id: number;
+  scopeType: string;
+  scopeId?: number | null;
+  scopeTitle?: string | null;
+  actionType: string;
+  detail?: string | null;
+  adminName?: string | null;
+  createdAt: string;
+}
+
+export interface AdminUserDetailRecord {
+  user: AdminUserSummary;
+  courses: ClassRecord[];
+  teams: TeamRecord[];
+  projects: ProjectRecord[];
+  submissions: UserAssignmentDigest[];
+  recentActivity: ProjectActivityEventRecord[];
+  recentNotifications: NotificationItem[];
+  audits: AdminAuditRecord[];
 }
 
 export interface AdminCourseSummary {
@@ -867,7 +1037,86 @@ export interface AdminCourseSummary {
   name: string;
   classCode: string;
   teacherName: string | null;
+  teacherId?: number | null;
   memberCount: number;
+  teamCount?: number;
+  projectCount?: number;
+  assignmentCount?: number;
+  createdAt: string;
+}
+
+export interface AdminTeacherOption {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface AdminImportPreviewRowRecord {
+  rowNumber: number;
+  name: string;
+  email: string;
+  groupName?: string | null;
+  action: string;
+  message: string;
+}
+
+export interface AdminImportPreviewRecord {
+  totalRows: number;
+  readyRows: number;
+  skippedRows: number;
+  createUserRows: number;
+  rows: AdminImportPreviewRowRecord[];
+}
+
+export interface AdminImportJobRecord {
+  id: number;
+  courseId?: number | null;
+  courseName?: string | null;
+  fileName?: string | null;
+  status: string;
+  totalRows?: number | null;
+  importedRows?: number | null;
+  skippedRows?: number | null;
+  createdUsersCount?: number | null;
+  createdByName?: string | null;
+  createdAt: string;
+  reportJson?: string | null;
+}
+
+export interface AdminImportResultRecord {
+  job: AdminImportJobRecord;
+  importedRows: number;
+  skippedRows: number;
+  createdUsersCount: number;
+  warnings: string[];
+}
+
+export interface AdminCourseDetailRecord {
+  classInfo: ClassRecord;
+  members: ClassMember[];
+  teams: TeamRecord[];
+  projects: ClassProjectRecord[];
+  assignments: AssignmentRecord[];
+  teacherOptions: AdminTeacherOption[];
+  importJobs: AdminImportJobRecord[];
+  audits: AdminAuditRecord[];
+}
+
+export interface AdminTeamSummary {
+  id: number;
+  name: string;
+  courseId?: number | null;
+  courseName?: string | null;
+  groupOrder?: number | null;
+  leaderId?: number | null;
+  leaderName?: string | null;
+  memberCount: number;
+  projectId?: number | null;
+  projectName?: string | null;
+  source: string;
+  status: string;
+  missingLeader: boolean;
+  missingProject: boolean;
   createdAt: string;
 }
 
@@ -877,9 +1126,28 @@ export interface AdminProjectSummary {
   type: 'CODE' | 'NON_CODE';
   status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
   progress: number;
+  courseId?: number | null;
   courseName: string | null;
+  teamId?: number | null;
   teamName: string | null;
+  currentMilestoneTitle?: string | null;
+  memberCount?: number | null;
+  lastActiveAt?: string | null;
   createdAt: string;
+}
+
+export interface AdminProjectDetailRecord {
+  projectDetail: ProjectDetail;
+  courseOptions: AdminCourseSummary[];
+  teamOptions: AdminTeamSummary[];
+  memberCandidates: AdminUserSummary[];
+  audits: AdminAuditRecord[];
+}
+
+export interface AdminTeamDetailRecord {
+  teamDetail: TeamDetailRecord;
+  memberCandidates: AdminUserSummary[];
+  audits: AdminAuditRecord[];
 }
 
 export interface AdminTaskSummary {
@@ -888,9 +1156,15 @@ export interface AdminTaskSummary {
   description: string;
   status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  courseId?: number | null;
+  courseName?: string | null;
+  teamId?: number | null;
+  teamName?: string | null;
+  projectId?: number | null;
   projectName: string | null;
   assigneeName: string | null;
   dueDate: string | null;
+  openPath?: string | null;
 }
 
 export interface AdminDiscussionSummary {
@@ -898,18 +1172,130 @@ export interface AdminDiscussionSummary {
   title: string;
   category: string;
   status: string;
+  courseId?: number | null;
+  courseName?: string | null;
+  teamId?: number | null;
+  teamName?: string | null;
+  projectId?: number | null;
   projectName: string | null;
   authorName: string | null;
   replyCount: number;
   createdAt: string;
+  openPath?: string | null;
 }
 
 export interface AdminAssignmentSummary {
   id: number;
+  courseId?: number | null;
   title: string;
   courseName: string | null;
   dueDate: string | null;
   totalSubmissions: number;
   gradedSubmissions: number;
   createdAt: string;
+  openPath?: string | null;
+}
+
+export interface AdminDocumentSummary {
+  id: number;
+  courseId?: number | null;
+  courseName?: string | null;
+  teamId?: number | null;
+  teamName?: string | null;
+  projectId?: number | null;
+  projectName?: string | null;
+  title: string;
+  kind?: string | null;
+  updatedAt: string;
+  fileAssetId?: number | null;
+  openPath?: string | null;
+}
+
+export interface AdminSystemOverviewRecord {
+  metrics: AdminMetricRecord[];
+  healthChecks: AdminHealthRecord[];
+  recentImports: AdminImportJobRecord[];
+  recentAudits: AdminAuditRecord[];
+}
+
+export interface AdminStorageTreeRecord {
+  nodeType: string;
+  nodeKey: string;
+  courseId?: number | null;
+  teamId?: number | null;
+  projectId?: number | null;
+  title: string;
+  subtitle?: string | null;
+  fileCount?: number | null;
+  repoCount?: number | null;
+  logCount?: number | null;
+  children: AdminStorageTreeRecord[];
+}
+
+export interface AdminStorageItemRecord {
+  itemType: string;
+  id?: number | null;
+  name: string;
+  path?: string | null;
+  sizeBytes?: number | null;
+  courseId?: number | null;
+  courseName?: string | null;
+  teamId?: number | null;
+  teamName?: string | null;
+  projectId?: number | null;
+  projectName?: string | null;
+  ownerType?: string | null;
+  ownerId?: number | null;
+  updatedAt?: string | null;
+  orphaned: boolean;
+}
+
+export interface AdminStorageBreadcrumbRecord {
+  name: string;
+  path: string;
+}
+
+export interface AdminStorageDirectoryEntryRecord {
+  path: string;
+  name: string;
+  itemType: 'directory' | 'file' | string;
+  sizeBytes?: number | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminStorageDirectoryRecord {
+  projectId: number;
+  projectName: string;
+  currentPath: string;
+  readOnly: boolean;
+  breadcrumbs: AdminStorageBreadcrumbRecord[];
+  entries: AdminStorageDirectoryEntryRecord[];
+}
+
+export interface AdminStorageFilePreviewRecord {
+  projectId: number;
+  path: string;
+  binary: boolean;
+  encoding: string;
+  content: string;
+  sizeBytes: number;
+}
+
+export interface AdminSystemHealthRecord {
+  serviceKey: string;
+  label: string;
+  status: string;
+  detail: string;
+  checkedAt: string;
+}
+
+export interface AdminBulkActionResultRecord {
+  action: string;
+  affectedCount: number;
+  warnings: string[];
+}
+
+export interface AdminActionResultRecord {
+  message: string;
+  affectedCount?: number | null;
 }

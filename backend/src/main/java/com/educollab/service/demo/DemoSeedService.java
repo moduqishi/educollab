@@ -1,6 +1,7 @@
 package com.educollab.service.demo;
 
 import com.educollab.common.exception.ApiException;
+import com.educollab.common.security.JwtPrincipal;
 import com.educollab.model.AiUsageLogEntity;
 import com.educollab.model.AssignmentEntity;
 import com.educollab.model.AssignmentStatus;
@@ -78,6 +79,8 @@ import com.educollab.repo.TeamMemberRepository;
 import com.educollab.repo.TeamRepository;
 import com.educollab.repo.UserRepository;
 import com.educollab.service.workspace.ProjectProgressService;
+import com.educollab.service.StoragePathService;
+import com.educollab.service.StorageService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
@@ -184,8 +187,8 @@ public class DemoSeedService {
   private final EntityManager entityManager;
   private final ObjectMapper objectMapper;
   private final Environment environment;
-  private final Path uploadRoot;
-  private final Path repoRoot;
+  private final StorageService storageService;
+  private final StoragePathService storagePathService;
   private final String datasourceUrl;
   private final Map<String, Map<String, Boolean>> tableColumnPresence = new LinkedHashMap<>();
 
@@ -223,13 +226,13 @@ public class DemoSeedService {
       AiUsageLogRepository aiUsageLogRepository,
       PasswordEncoder passwordEncoder,
       ProjectProgressService projectProgressService,
+      StorageService storageService,
+      StoragePathService storagePathService,
       JdbcTemplate jdbcTemplate,
       DataSource dataSource,
       EntityManager entityManager,
       ObjectMapper objectMapper,
       Environment environment,
-      @Value("${app.file-storage.root:./data/uploads}") String uploadRoot,
-      @Value("${app.git.root:./data/repos}") String repoRoot,
       @Value("${spring.datasource.url:}") String datasourceUrl) {
     this.userRepository = userRepository;
     this.courseRepository = courseRepository;
@@ -264,13 +267,13 @@ public class DemoSeedService {
     this.aiUsageLogRepository = aiUsageLogRepository;
     this.passwordEncoder = passwordEncoder;
     this.projectProgressService = projectProgressService;
+    this.storageService = storageService;
+    this.storagePathService = storagePathService;
     this.jdbcTemplate = jdbcTemplate;
     this.dataSource = dataSource;
     this.entityManager = entityManager;
     this.objectMapper = objectMapper;
     this.environment = environment;
-    this.uploadRoot = Path.of(uploadRoot);
-    this.repoRoot = Path.of(repoRoot);
     this.datasourceUrl = datasourceUrl == null ? "" : datasourceUrl;
   }
 
@@ -313,8 +316,7 @@ public class DemoSeedService {
   }
 
   private void wipeGeneratedFiles() {
-    deleteRecursively(uploadRoot);
-    deleteRecursively(repoRoot);
+    deleteRecursively(storagePathService.storageRoot());
     cleanupH2Artifacts();
   }
 
@@ -470,6 +472,8 @@ public class DemoSeedService {
     markProjectStatus(mainProject.project, ProjectStatus.ACTIVE, daysAgoAt(0, 12, 0));
     markProjectStatus(planningProject.project, ProjectStatus.ACTIVE, daysAgoAt(0, 9, 0));
     markProjectStatus(uxProject.project, ProjectStatus.ACTIVE, daysAgoAt(0, 10, 0));
+
+    finalizeProjectStorage(mainProject.project, completedProject.project, planningProject.project, uxProject.project);
   }
 
   private DemoUsers createUsers() {
@@ -565,8 +569,8 @@ public class DemoSeedService {
     DocumentVersionEntity briefV1 = createDocumentVersion(brief, users.alex, "v1 需求纪要", "# 需求澄清\n\n- 初版把周报升级成总结\n- 增加图表和排行榜", weeksAgoAt(4, DayOfWeek.FRIDAY, 18, 20));
     DocumentVersionEntity briefV2 = createDocumentVersion(brief, users.sarah, "v2 结构收口", "# 需求澄清\n\n- 项目页、团队页、教师页统一成总结语义\n- 页面更像工作台而不是说明文档", daysAgoAt(13, 20, 10));
 
-    FileAssetEntity pptV1 = createFileAsset(FileOwnerType.DOCUMENT, 0L, "阶段演示稿-v1.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", officeTemplate("pptx"), daysAgoAt(14, 10, 0));
-    DocumentEntity deck = createOfficeDocument(project, "阶段演示稿", "pptx", pptV1, daysAgoAt(14, 10, 0));
+    DocumentEntity deck = createOfficeDocument(project, "阶段演示稿", "pptx", officeTemplate("pptx"), daysAgoAt(14, 10, 0));
+    FileAssetEntity pptV1 = fileAssetRepository.findById(deck.getFileAssetId()).orElseThrow();
     FileAssetEntity pptV2 = createFileAsset(FileOwnerType.DOCUMENT, deck.getId(), "阶段演示稿-v2.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", officeTemplate("pptx"), daysAgoAt(3, 11, 0));
     deck.setFileAssetId(pptV2.getId());
     documentRepository.save(deck);
@@ -1003,14 +1007,15 @@ public class DemoSeedService {
     entity.setExcerpt(excerpt(content));
     entity.setCurrentContent(content);
     entity.setCollabKey("doc-" + UUID.randomUUID());
-    entity.setKind(DocumentKind.NOTE);
+    entity.setKind(DocumentKind.MARKDOWN);
     documentRepository.save(entity);
     touch("documents", entity.getId(), createdAt, createdAt.plusMinutes(5));
+    storageService.syncProjectDocumentNodes(project.getId());
     insertActivityEvent(project, project.getTeam() != null ? project.getTeam().getLeader() : null, ProjectActivityEventType.DOCUMENT_CREATED, "DOCUMENT", entity.getId(), title, 1, null, null, "document-created:" + entity.getId(), detail(), createdAt.plusMinutes(1));
     return entity;
   }
 
-  private DocumentEntity createOfficeDocument(ProjectEntity project, String title, String ext, FileAssetEntity primaryFile, LocalDateTime createdAt) {
+  private DocumentEntity createOfficeDocument(ProjectEntity project, String title, String ext, byte[] initialBytes, LocalDateTime createdAt) {
     DocumentEntity entity = new DocumentEntity();
     entity.setProject(project);
     entity.setTitle(title);
@@ -1021,9 +1026,17 @@ public class DemoSeedService {
     entity.setOfficeExt(ext);
     documentRepository.save(entity);
     touch("documents", entity.getId(), createdAt, createdAt.plusMinutes(3));
+    FileAssetEntity primaryFile =
+        createFileAsset(
+            FileOwnerType.DOCUMENT,
+            entity.getId(),
+            title + "." + ext,
+            mimeForOffice(ext),
+            initialBytes,
+            createdAt.plusMinutes(1));
     updateLong("documents", "file_asset_id", entity.getId(), primaryFile.getId());
     entity.setFileAssetId(primaryFile.getId());
-    updateLong("file_assets", "owner_id", primaryFile.getId(), entity.getId());
+    storageService.syncProjectDocumentNodes(project.getId());
     insertActivityEvent(project, project.getTeam() != null ? project.getTeam().getLeader() : null, ProjectActivityEventType.DOCUMENT_CREATED, "DOCUMENT", entity.getId(), title, 1, null, null, "document-created:" + entity.getId(), detail("kind", "OFFICE"), createdAt.plusMinutes(1));
     return entity;
   }
@@ -1046,24 +1059,18 @@ public class DemoSeedService {
   }
 
   private FileAssetEntity createFileAsset(FileOwnerType ownerType, Long ownerId, String fileName, String mimeType, byte[] bytes, LocalDateTime createdAt) {
-    try {
-      Files.createDirectories(uploadRoot);
-      String storedName = UUID.randomUUID() + "-" + fileName;
-      Path path = uploadRoot.resolve(storedName);
-      Files.write(path, bytes);
-      FileAssetEntity entity = new FileAssetEntity();
-      entity.setOwnerType(ownerType);
-      entity.setOwnerId(ownerId);
-      entity.setFileName(fileName);
-      entity.setStoragePath(path.toString());
-      entity.setMimeType(mimeType);
-      entity.setSizeBytes((long) bytes.length);
-      fileAssetRepository.save(entity);
-      touch("file_assets", entity.getId(), createdAt, createdAt);
-      return entity;
-    } catch (IOException ex) {
-      throw new ApiException("写入演示附件失败: " + ex.getMessage());
-    }
+    var record =
+        storageService.storeOwnedBytes(
+            bytes,
+            fileName,
+            mimeType,
+            ownerType,
+            ownerId,
+            new JwtPrincipal(0L, "demo-seed@educollab.local", UserRole.ADMIN));
+    FileAssetEntity entity =
+        fileAssetRepository.findById(record.id()).orElseThrow(() -> new ApiException("演示附件写入失败"));
+    touch("file_assets", entity.getId(), createdAt, createdAt);
+    return entity;
   }
 
   private void insertFileUploadedEvent(ProjectEntity project, UserEntity actor, FileAssetEntity file, String targetType, Long targetId, LocalDateTime occurredAt) {
@@ -1187,9 +1194,10 @@ public class DemoSeedService {
 
   private List<GitCommitRecorded> createRepositoryHistory(ProjectEntity project, DemoUsers users, List<GitCommitSeed> mainCommits, List<BranchSeed> branches) {
     try {
-      Files.createDirectories(repoRoot);
       String slug = slugify(project.getName());
-      Path bareDir = repoRoot.resolve(slug + ".git");
+      Path repoDir = storagePathService.projectRepositoryRoot(project);
+      Files.createDirectories(repoDir);
+      Path bareDir = repoDir.resolve(project.getId() + "-" + slug + ".git");
       try (Git bare = Git.init().setBare(true).setInitialBranch("main").setDirectory(bareDir.toFile()).call()) {
         // bare repository created
       }
@@ -1312,6 +1320,71 @@ public class DemoSeedService {
         Timestamp.valueOf(occurredAt),
         Timestamp.valueOf(occurredAt),
         Timestamp.valueOf(occurredAt));
+    appendActivityLogFile(project, actor, type, targetType, targetId, targetTitle, eventCount, linesAdded, linesDeleted, dedupeKey, detail, occurredAt);
+  }
+
+  private void appendActivityLogFile(
+      ProjectEntity project,
+      UserEntity actor,
+      ProjectActivityEventType type,
+      String targetType,
+      Long targetId,
+      String targetTitle,
+      Integer eventCount,
+      Integer linesAdded,
+      Integer linesDeleted,
+      String dedupeKey,
+      Map<String, Object> detail,
+      LocalDateTime occurredAt) {
+    try {
+      Path dir = storagePathService.projectActivityLogsRoot(project);
+      Files.createDirectories(dir);
+      Path file = storagePathService.projectWeeklyActivityLogFile(project, occurredAt);
+      Map<String, Object> payload = new LinkedHashMap<>();
+      payload.put("projectId", project.getId());
+      payload.put("courseId", project.getCourse() != null ? project.getCourse().getId() : null);
+      payload.put("teamId", project.getTeam() != null ? project.getTeam().getId() : null);
+      payload.put("userId", actor != null ? actor.getId() : null);
+      payload.put("eventType", type.name());
+      payload.put("targetType", targetType);
+      payload.put("targetId", targetId);
+      payload.put("targetTitle", targetTitle);
+      payload.put("eventCount", eventCount);
+      payload.put("linesAdded", linesAdded);
+      payload.put("linesDeleted", linesDeleted);
+      payload.put("detail", detail == null ? Map.of() : detail);
+      payload.put("dedupeKey", dedupeKey);
+      payload.put("occurredAt", occurredAt.toString());
+      Files.writeString(
+          file,
+          objectMapper.writeValueAsString(payload) + System.lineSeparator(),
+          StandardCharsets.UTF_8,
+          java.nio.file.StandardOpenOption.CREATE,
+          java.nio.file.StandardOpenOption.APPEND);
+    } catch (Exception ex) {
+      throw new ApiException("写入演示活动日志失败: " + ex.getMessage());
+    }
+  }
+
+  private void finalizeProjectStorage(ProjectEntity... projects) {
+    for (ProjectEntity project : projects) {
+      storageService.syncProjectDocumentNodes(project.getId());
+      try {
+        Files.createDirectories(storagePathService.projectSummaryCacheRoot(project));
+        Files.createDirectories(storagePathService.projectAuditRoot(project));
+        Files.writeString(
+            storagePathService.projectSummaryCacheRoot(project).resolve("latest-summary.json"),
+            objectMapper.writeValueAsString(
+                Map.of(
+                    "projectId", project.getId(),
+                    "projectName", project.getName(),
+                    "generatedAt", LocalDateTime.now().toString(),
+                    "status", Objects.requireNonNullElse(project.getStatus(), ProjectStatus.ACTIVE).name())),
+            StandardCharsets.UTF_8);
+      } catch (Exception ex) {
+        throw new ApiException("写入演示总结缓存失败: " + ex.getMessage());
+      }
+    }
   }
 
   private Map<String, Object> detail(Object... args) {
@@ -1358,6 +1431,15 @@ public class DemoSeedService {
     }
     String plain = content.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
     return plain.substring(0, Math.min(plain.length(), 90));
+  }
+
+  private String mimeForOffice(String ext) {
+    return switch (Objects.requireNonNullElse(ext, "").toLowerCase(Locale.ROOT)) {
+      case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      case "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+      default -> "application/octet-stream";
+    };
   }
 
   private String slugify(String input) {

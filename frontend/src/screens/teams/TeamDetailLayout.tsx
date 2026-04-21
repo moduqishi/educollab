@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BarChart3, CheckSquare, FileText, FolderKanban, Settings, Users } from 'lucide-react';
 import { useApi } from '@/app/api';
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { AdminOverrideBanner, useAdminOverrideState } from '@/components/admin/AdminOverrideBanner';
 import type { TeamDetailRecord } from '@/lib/types';
 import { PageError } from '@/screens/common/States';
 
@@ -32,6 +33,7 @@ export function useTeamDetail() {
 export function TeamDetailLayout() {
   const api = useApi();
   const nav = useNavigate();
+  const location = useLocation();
   const { teamId } = useParams();
   const id = Number(teamId);
   const qc = useQueryClient();
@@ -53,6 +55,10 @@ export function TeamDetailLayout() {
   };
 
   const detail = detailQ.data;
+  const adminMode = location.pathname.startsWith('/app/admin/teams/');
+  const { enabled: adminOverride } = useAdminOverrideState();
+  const basePath = adminMode ? `/app/admin/teams/${id}` : `/app/teams/${id}`;
+  const backTo = adminMode ? '/app/admin/teams' : detail?.courseId ? `/app/classes/${detail.courseId}/teams` : '/app/teams';
 
   React.useEffect(() => {
     if (detail?.name) setTitle([detail.name, '团队详情']);
@@ -79,11 +85,13 @@ export function TeamDetailLayout() {
   }
 
   const tabs = [
-    { to: `/app/teams/${id}/overview`, label: '概览', icon: BarChart3 },
-    { to: `/app/teams/${id}/members`, label: '成员', icon: Users },
-    { to: `/app/teams/${id}/projects`, label: '项目', icon: FolderKanban },
-    { to: `/app/teams/${id}/tasks`, label: '任务', icon: CheckSquare },
-    { to: `/app/teams/${id}/reports`, label: '总结', icon: FileText },
+    { to: `${basePath}/overview`, label: '概览', icon: BarChart3 },
+    { to: `${basePath}/members`, label: '成员', icon: Users },
+    { to: `${basePath}/projects`, label: '项目', icon: FolderKanban },
+    { to: `${basePath}/tasks`, label: '任务', icon: CheckSquare },
+    { to: `${basePath}/files`, label: '文件', icon: FileText },
+    { to: `${basePath}/reports`, label: '总结', icon: FileText },
+    ...(adminMode ? [{ to: `${basePath}/audit`, label: '审计', icon: Settings }] : []),
   ];
 
   const teamTypeLabel = detail.source === 'COURSE' ? '课程团队' : '独立团队';
@@ -95,10 +103,11 @@ export function TeamDetailLayout() {
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav(detail.courseId ? `/app/classes/${detail.courseId}/teams` : '/app/teams')} title="返回团队列表">
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav(backTo)} title={adminMode ? '返回团队管理' : '返回团队列表'}>
                   <ArrowLeft size={18} />
                 </Button>
                 <Badge variant="outline" className="rounded-full">{teamTypeLabel}</Badge>
+                {adminMode ? <Badge variant="secondary" className="rounded-full">管理员视图</Badge> : null}
                 {detail.groupOrder ? <Badge variant="secondary" className="rounded-full">{`第 ${detail.groupOrder} 组`}</Badge> : null}
                 <span className="truncate">{detail.courseName || '未关联课程'}</span>
               </div>
@@ -136,11 +145,13 @@ export function TeamDetailLayout() {
             </div>
           </div>
 
+          <AdminOverrideBanner description="管理员正在团队前台界面中接管成员、项目、任务、文件和总结工作流。" />
+
           <div className="mt-6 flex flex-wrap items-center gap-2 border-b pb-3">
             {tabs.map((t) => (
               <NavLink
                 key={t.to}
-                to={t.to}
+                to={adminOverride ? `${t.to}${location.search}` : t.to}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors',

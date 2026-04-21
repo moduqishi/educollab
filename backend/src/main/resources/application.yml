@@ -26,6 +26,8 @@ app:
     root: ${GIT_REPO_ROOT:./data/repos}
   file-storage:
     root: ${FILE_STORAGE_ROOT:./data/uploads}
+  logs:
+    root: ${LOG_ARCHIVE_ROOT:./data/logs}
   ai:
     provider: ${AI_PROVIDER:openai-compatible}
     base-url: ${AI_BASE_URL:https://api.openai.com/v1}

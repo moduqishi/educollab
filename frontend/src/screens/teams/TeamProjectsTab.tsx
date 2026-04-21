@@ -28,7 +28,7 @@ export function TeamProjectsTab() {
     },
   });
 
-  const canCreate = detail.currentUserLeader && !detail.teacherView && !detail.project;
+  const canCreate = (detail.currentUserLeader || detail.adminView) && !detail.teacherView && !detail.project;
 
   return (
     <Card className="border-muted/70">

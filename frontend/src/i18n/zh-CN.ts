@@ -8,7 +8,7 @@ export const zhCN = {
     save: '保存',
     create: '创建',
     refresh: '刷新',
-    searchPlaceholder: '搜索项目、任务、文档…',
+    searchPlaceholder: '搜索项目、任务、文件…',
   },
   nav: {
     dashboard: '仪表盘',
@@ -51,7 +51,7 @@ export const zhCN = {
     tasksTitle: '任务',
     tasksSubtitle: '跨项目查看你的待办与进展。',
     documentsTitle: '文档',
-    documentsSubtitle: '跨项目查看与管理协作文档。',
+    documentsSubtitle: '跨项目查看与管理协同文档与 Office 文档。',
     discussionsTitle: '讨论',
     discussionsSubtitle: '集中查看与参与讨论。',
     repoTitle: '仓库',

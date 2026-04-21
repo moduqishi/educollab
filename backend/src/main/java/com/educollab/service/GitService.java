@@ -30,6 +30,8 @@ import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
+import org.eclipse.jgit.lib.Ref;
+import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTree;
@@ -45,19 +47,19 @@ public class GitService {
     private final GitRepositoryRepository gitRepoRepository;
     private final MergeRequestRepository mergeRequestRepository;
     private final ProjectReleaseRepository projectReleaseRepository;
-    private final Path repoRoot;
+    private final StoragePathService storagePathService;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     public GitService(
         GitRepositoryRepository gitRepoRepository,
         MergeRequestRepository mergeRequestRepository,
         ProjectReleaseRepository projectReleaseRepository,
-        @Value("${app.git.root:./data/repos}") String repoRoot
+        StoragePathService storagePathService
     ) {
         this.gitRepoRepository = gitRepoRepository;
         this.mergeRequestRepository = mergeRequestRepository;
         this.projectReleaseRepository = projectReleaseRepository;
-        this.repoRoot = Path.of(repoRoot);
+        this.storagePathService = storagePathService;
     }
 
     @Transactional
@@ -68,9 +70,10 @@ public class GitService {
     @Transactional
     public GitRepositoryEntity createRepository(ProjectEntity project) {
         try {
-            Files.createDirectories(repoRoot);
+            Files.createDirectories(storagePathService.storageRoot());
             String slug = project.getName().toLowerCase().replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
-            Path bareDir = repoRoot.resolve(slug + ".git");
+            Path bareDir = resolveRepositoryPath(project, slug);
+            Files.createDirectories(bareDir.getParent());
             if (!Files.exists(bareDir)) {
                 Git.init().setBare(true).setInitialBranch("main").setDirectory(bareDir.toFile()).call().close();
                 seedRepository(bareDir, slug);
@@ -83,6 +86,10 @@ public class GitService {
         } catch (Exception ex) {
             throw new ApiException("初始化仓库失败: " + ex.getMessage());
         }
+    }
+
+    private Path resolveRepositoryPath(ProjectEntity project, String slug) {
+        return storagePathService.projectRepositoryRoot(project).resolve(project.getId() + "-" + slug + ".git");
     }
 
     private void seedRepository(Path bareDir, String slug) throws Exception {
@@ -145,13 +152,27 @@ public class GitService {
         }
     }
 
-    public List<CommitView> listCommits(Long projectId) {
+    public String defaultBranch(Long projectId) {
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) return "main";
+        try (var repository = new FileRepository(repo.getBarePath())) {
+            Ref head = repository.exactRef(Constants.HEAD);
+            if (head != null && head.isSymbolic() && head.getTarget() != null) {
+                return Repository.shortenRefName(head.getTarget().getName());
+            }
+        } catch (Exception ignored) {
+        }
+        return "main";
+    }
+
+    public List<CommitView> listCommits(Long projectId, String refName) {
         GitRepositoryEntity repo = findRepository(projectId);
         if (repo == null) return List.of();
         try (var repository = new FileRepository(repo.getBarePath())) {
             try (Git git = new Git(repository)) {
-                var head = repository.resolve(Constants.HEAD);
+                ObjectId head = resolveCommitish(repository, refName);
                 if (head == null) return List.of();
+                String branch = normalizeRefName(repository, refName);
                 Iterable<RevCommit> log = git.log().add(head).call();
                 List<CommitView> items = new ArrayList<>();
                 for (RevCommit commit : log) {
@@ -161,7 +182,7 @@ public class GitService {
                             commit.getShortMessage(),
                             commit.getAuthorIdent().getName(),
                             formatter.format(commit.getAuthorIdent().getWhenAsInstant().atZone(ZoneId.systemDefault())),
-                            "main"
+                            branch
                         )
                     );
                     if (items.size() >= 50) break;
@@ -236,81 +257,11 @@ public class GitService {
     }
 
     public List<TreeEntry> listTree(Long projectId, String path) {
-        GitRepositoryEntity repo = findRepository(projectId);
-        if (repo == null) return List.of();
-        String base = path == null ? "" : path.trim();
-        if (base.startsWith("/")) base = base.substring(1);
-        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
-
-        try (var repository = new FileRepository(repo.getBarePath()); var revWalk = new RevWalk(repository)) {
-            var headId = repository.resolve(Constants.HEAD);
-            if (headId == null) return List.of();
-            RevCommit commit = revWalk.parseCommit(headId);
-            RevTree rootTree = commit.getTree();
-
-            List<TreeEntry> items = new ArrayList<>();
-
-            if (base.isEmpty()) {
-                try (TreeWalk walk = new TreeWalk(repository)) {
-                    walk.addTree(rootTree);
-                    walk.setRecursive(false);
-                    while (walk.next()) {
-                        items.add(toEntry(repository, "", walk));
-                    }
-                }
-                return items;
-            }
-
-            try (TreeWalk tw = TreeWalk.forPath(repository, base, rootTree)) {
-                if (tw == null) return List.of();
-                if (!tw.isSubtree()) throw new ApiException("不是目录: " + base);
-                var subtreeId = tw.getObjectId(0);
-                try (TreeWalk walk = new TreeWalk(repository)) {
-                    walk.addTree(subtreeId);
-                    walk.setRecursive(false);
-                    while (walk.next()) {
-                        items.add(toEntry(repository, base, walk));
-                    }
-                }
-                return items;
-            }
-        } catch (ApiException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new ApiException("读取文件树失败: " + ex.getMessage());
-        }
+        return listTree(projectId, null, path);
     }
 
     public BlobView readBlob(Long projectId, String path) {
-        GitRepositoryEntity repo = requireRepository(projectId);
-        String p = path == null ? "" : path.trim();
-        if (p.startsWith("/")) p = p.substring(1);
-        if (p.isBlank()) throw new ApiException("路径不能为空");
-
-        try (var repository = new FileRepository(repo.getBarePath()); var revWalk = new RevWalk(repository)) {
-            var headId = repository.resolve(Constants.HEAD);
-            if (headId == null) throw new ApiException("仓库为空");
-            RevCommit commit = revWalk.parseCommit(headId);
-            RevTree tree = commit.getTree();
-
-            try (TreeWalk tw = TreeWalk.forPath(repository, p, tree)) {
-                if (tw == null) throw new ApiException("文件不存在: " + p);
-                if (tw.isSubtree()) throw new ApiException("不是文件: " + p);
-                var loader = repository.open(tw.getObjectId(0));
-                long size = loader.getSize();
-                long cap = 1024L * 1024L;
-                byte[] bytes = loader.getBytes((int) Math.min(size, cap));
-                boolean binary = isBinary(bytes);
-                if (binary) {
-                    return new BlobView(p, true, "base64", Base64.getEncoder().encodeToString(bytes), size);
-                }
-                return new BlobView(p, false, "utf-8", new String(bytes, StandardCharsets.UTF_8), size);
-            }
-        } catch (ApiException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new ApiException("读取文件失败: " + ex.getMessage());
-        }
+        return readBlob(projectId, null, path);
     }
 
     private GitRepositoryEntity findRepository(Long projectId) {
@@ -323,6 +274,93 @@ public class GitService {
             throw new ApiException("仓库尚未初始化");
         }
         return repo;
+    }
+
+    public List<TreeEntry> listTree(Long projectId, String refName, String path) {
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) return List.of();
+        String base = path == null ? "" : path.trim();
+        if (base.startsWith("/")) base = base.substring(1);
+        if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
+        try (var repository = new FileRepository(repo.getBarePath()); var revWalk = new RevWalk(repository)) {
+            var commitId = resolveCommitish(repository, refName);
+            if (commitId == null) return List.of();
+            RevCommit commit = revWalk.parseCommit(commitId);
+            RevTree rootTree = commit.getTree();
+            List<TreeEntry> items = new ArrayList<>();
+            if (base.isEmpty()) {
+                try (TreeWalk walk = new TreeWalk(repository)) {
+                    walk.addTree(rootTree);
+                    walk.setRecursive(false);
+                    while (walk.next()) items.add(toEntry(repository, "", walk));
+                }
+                return items;
+            }
+            try (TreeWalk tw = TreeWalk.forPath(repository, base, rootTree)) {
+                if (tw == null) return List.of();
+                if (!tw.isSubtree()) throw new ApiException("不是目录: " + base);
+                try (TreeWalk walk = new TreeWalk(repository)) {
+                    walk.addTree(tw.getObjectId(0));
+                    walk.setRecursive(false);
+                    while (walk.next()) items.add(toEntry(repository, base, walk));
+                }
+                return items;
+            }
+        } catch (ApiException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ApiException("读取文件树失败: " + ex.getMessage());
+        }
+    }
+
+    public BlobView readBlob(Long projectId, String refName, String path) {
+        GitRepositoryEntity repo = requireRepository(projectId);
+        String p = path == null ? "" : path.trim();
+        if (p.startsWith("/")) p = p.substring(1);
+        if (p.isBlank()) throw new ApiException("路径不能为空");
+        try (var repository = new FileRepository(repo.getBarePath()); var revWalk = new RevWalk(repository)) {
+            var commitId = resolveCommitish(repository, refName);
+            if (commitId == null) throw new ApiException("仓库为空");
+            RevCommit commit = revWalk.parseCommit(commitId);
+            RevTree tree = commit.getTree();
+            try (TreeWalk tw = TreeWalk.forPath(repository, p, tree)) {
+                if (tw == null) throw new ApiException("文件不存在: " + p);
+                if (tw.isSubtree()) throw new ApiException("不是文件: " + p);
+                var loader = repository.open(tw.getObjectId(0));
+                long size = loader.getSize();
+                long cap = 1024L * 1024L;
+                byte[] bytes = loader.getBytes((int) Math.min(size, cap));
+                boolean binary = isBinary(bytes);
+                if (binary) return new BlobView(p, true, "base64", Base64.getEncoder().encodeToString(bytes), size);
+                return new BlobView(p, false, "utf-8", new String(bytes, StandardCharsets.UTF_8), size);
+            }
+        } catch (ApiException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ApiException("读取文件失败: " + ex.getMessage());
+        }
+    }
+
+    private ObjectId resolveCommitish(org.eclipse.jgit.lib.Repository repository, String refName) throws IOException {
+        String normalized = normalizeRefName(repository, refName);
+        ObjectId resolved = repository.resolve(normalized);
+        if (resolved != null) return resolved;
+        return repository.resolve(Constants.HEAD);
+    }
+
+    private String normalizeRefName(org.eclipse.jgit.lib.Repository repository, String refName) throws IOException {
+        if (refName == null || refName.isBlank()) {
+            Ref head = repository.exactRef(Constants.HEAD);
+            if (head != null && head.isSymbolic() && head.getTarget() != null) {
+                return head.getTarget().getName();
+            }
+            return Constants.HEAD;
+        }
+        String trimmed = refName.trim();
+        if (trimmed.startsWith("refs/")) return trimmed;
+        if (repository.resolve("refs/heads/" + trimmed) != null) return "refs/heads/" + trimmed;
+        if (repository.resolve("refs/remotes/origin/" + trimmed) != null) return "refs/remotes/origin/" + trimmed;
+        return trimmed;
     }
 
     private TreeEntry toEntry(org.eclipse.jgit.lib.Repository repository, String base, TreeWalk walk) throws IOException {

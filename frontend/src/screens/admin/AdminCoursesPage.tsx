@@ -1,41 +1,40 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, CheckCircle, Edit2, GraduationCap, Search, Trash2, X } from 'lucide-react';
+import { BookOpen, Plus, Search, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
-import { PageHero } from '@/screens/shell/PageHero';
 import { PageError, PageLoading, PageEmpty } from '@/screens/common/States';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { AdminCourseSummary } from '@/lib/types';
+import { AdminPageIntro, AdminPanel, AdminStatGrid } from './admin-layout';
 
 export function AdminCoursesPage() {
   const api = useApi();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+
   const [search, setSearch] = React.useState('');
-  const [feedback, setFeedback] = React.useState<{ type: 'success' | 'error'; msg: string } | null>(null);
-  const [editTarget, setEditTarget] = React.useState<AdminCourseSummary | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<AdminCourseSummary | null>(null);
-  React.useEffect(() => { setTitle(['系统管理', '课程管理']); }, []);
+  const [open, setOpen] = React.useState(false);
+  const [form, setForm] = React.useState({ name: '', classCode: '', teacherId: '' });
+
+  React.useEffect(() => setTitle(['系统管理', '课程管理']), []);
 
   const q = useQuery({ queryKey: ['adminCourses'], queryFn: () => api.adminCourses() });
+  const usersQ = useQuery({ queryKey: ['adminUsers'], queryFn: () => api.adminUsers() });
 
-  const saveM = useMutation({
-    mutationFn: ({ courseId, name, classCode }: { courseId: number; name: string; classCode: string }) =>
-      api.updateCourse(courseId, name, classCode),
+  const createM = useMutation({
+    mutationFn: () => api.createAdminCourse({ name: form.name, classCode: form.classCode || undefined, teacherId: form.teacherId ? Number(form.teacherId) : null }),
     onSuccess: async () => {
+      setOpen(false);
+      setForm({ name: '', classCode: '', teacherId: '' });
       await qc.invalidateQueries({ queryKey: ['adminCourses'] });
-      setEditTarget(null);
-      setFeedback({ type: 'success', msg: '课程更新成功' });
-      setTimeout(() => setFeedback(null), 3000);
-    },
-    onError: () => {
-      setFeedback({ type: 'error', msg: '课程更新失败' });
-      setTimeout(() => setFeedback(null), 3000);
     },
   });
 
@@ -44,150 +43,107 @@ export function AdminCoursesPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['adminCourses'] });
       setDeleteTarget(null);
-      setFeedback({ type: 'success', msg: '课程已删除' });
-      setTimeout(() => setFeedback(null), 3000);
-    },
-    onError: () => {
-      setFeedback({ type: 'error', msg: '删除失败' });
-      setTimeout(() => setFeedback(null), 3000);
     },
   });
 
-  if (q.isLoading) return <PageLoading label="正在加载课程列表..." />;
-  if (q.isError) return <PageError onRetry={() => q.refetch()} />;
+  if (q.isLoading || usersQ.isLoading) return <PageLoading label="正在加载课程管理数据..." />;
+  if (q.isError || usersQ.isError) return <PageError onRetry={() => { void q.refetch(); void usersQ.refetch(); }} title="课程列表加载失败" />;
 
-  const filtered = (q.data || []).filter(c =>
-    !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.classCode?.toLowerCase().includes(search.toLowerCase())
-  );
+  const rows = (q.data || []).filter((item) => {
+    const keyword = search.trim().toLowerCase();
+    return !keyword || item.name.toLowerCase().includes(keyword) || item.classCode.toLowerCase().includes(keyword) || (item.teacherName || '').toLowerCase().includes(keyword);
+  });
+
+  const totalMembers = rows.reduce((sum, item) => sum + item.memberCount, 0);
+  const missingTeachers = rows.filter((item) => !item.teacherName).length;
 
   return (
-    <div>
-      <PageHero
-        title="课程管理"
-        subtitle={`共 ${q.data?.length || 0} 门课程，可编辑或删除。`}
-        right={<Badge variant="outline" className="border-primary/15 bg-primary/5 text-primary">管理员</Badge>}
-      />
-      <div className="px-8 pb-10">
-        <div className="mx-auto max-w-[1500px] space-y-4">
-          {/* Search */}
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-80">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="搜索课程名称或班级码..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-              {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X size={14} /></button>}
-            </div>
+    <div className="px-8 py-8 pb-10">
+      <div className="mx-auto max-w-[1650px] space-y-6">
+        <AdminPageIntro
+          eyebrow="管理员后台 / 结构主入口"
+          title="课程管理"
+          description="课程是管理员维护系统结构的主对象。应先进入课程，再继续管理成员、团队、项目、导入和课程文件，而不是把所有对象完全平铺处理。"
+          actions={<Button className="gap-2" onClick={() => setOpen(true)}><Plus size={14} />新建课程</Button>}
+          badges={<><Badge variant="outline">课程 {q.data?.length || 0}</Badge><Badge variant="outline">成员 {totalMembers}</Badge></>}
+        />
+
+        <AdminStatGrid
+          items={[
+            { label: '课程总数', value: q.data?.length || 0, hint: '管理员结构主入口' },
+            { label: '课程成员总量', value: totalMembers, hint: '所有课程内成员数量汇总' },
+            { label: '未分配教师课程', value: missingTeachers, hint: '应优先补齐课程教师', tone: missingTeachers > 0 ? 'danger' : 'success' },
+            { label: '主链路', value: '课程 → 团队 → 项目', hint: '详情页里继续往下管理' },
+          ]}
+        />
+
+        <AdminPanel title="筛选与检索" description="按课程名、班级码或教师定位课程。">
+          <div className="relative max-w-md">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input className="pl-9" placeholder="搜索课程名、班级码、教师..." value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
+        </AdminPanel>
 
-          {feedback && (
-            <div className={`flex items-center gap-2 text-sm ${feedback.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>
-              <CheckCircle size={14} />{feedback.msg}
-            </div>
-          )}
-
-          {!filtered.length ? (
-            <PageEmpty title="无匹配课程" message="请尝试调整搜索条件。" icon={BookOpen} />
+        <AdminPanel title="课程列表" description="每条课程记录都应能继续钻取到成员、团队、项目与导入流程。">
+          {!rows.length ? (
+            <PageEmpty title="没有匹配课程" message="请调整检索条件后再试。" icon={BookOpen} />
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((course) => (
-                <Card key={course.id} className="border-muted/70 hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-start justify-between gap-2 text-base">
-                      <span className="truncate">{course.name}</span>
-                      <Badge variant="outline" className="shrink-0">{course.memberCount} 人</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <GraduationCap size={14} className="text-muted-foreground shrink-0" />
-                      <span className="text-muted-foreground">教师：</span>
-                      <span className="font-medium truncate">{course.teacherName || '未分配'}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <BookOpen size={14} className="text-muted-foreground shrink-0" />
-                      <span className="text-muted-foreground">班级码：</span>
-                      <span className="font-mono text-xs">{course.classCode}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">创建于 {course.createdAt || '未知'}</div>
-                    <div className="flex gap-2 pt-1">
-                      <Button size="sm" variant="outline" className="flex-1 gap-1.5" onClick={() => setEditTarget(course)}>
-                        <Edit2 size={13} />编辑
-                      </Button>
-                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive gap-1.5"
-                        onClick={() => setDeleteTarget(course)}>
-                        <Trash2 size={13} />删除
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="px-3 py-3 font-medium">课程</th>
+                    <th className="px-3 py-3 font-medium">教师</th>
+                    <th className="px-3 py-3 font-medium">结构规模</th>
+                    <th className="px-3 py-3 font-medium">课程下游</th>
+                    <th className="px-3 py-3 font-medium">创建时间</th>
+                    <th className="px-3 py-3 font-medium text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((course) => (
+                    <tr key={course.id} className="border-b last:border-b-0 align-top">
+                      <td className="px-3 py-3">
+                        <div className="font-medium">{course.name}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">班级码 {course.classCode}</div>
+                      </td>
+                      <td className="px-3 py-3">
+                        {course.teacherName ? <Badge variant="outline">{course.teacherName}</Badge> : <Badge variant="destructive">未分配教师</Badge>}
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        <div>学生 {course.memberCount}</div>
+                        <div className="text-xs">团队 {course.teamCount || 0} · 项目 {course.projectCount || 0} · 作业 {course.assignmentCount || 0}</div>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        <div>进入课程详情后继续管理团队和项目结构</div>
+                        <div className="text-xs">支持成员维护、批量导入、课程文件和审计</div>
+                      </td>
+                      <td className="px-3 py-3 text-muted-foreground">{course.createdAt}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline" onClick={() => navigate(`/app/admin/courses/${course.id}/overview`)}>结构详情</Button>
+                          <Button size="sm" variant="outline" onClick={() => navigate(`/app/admin/courses/${course.id}/import`)}>导入</Button>
+                          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(course)}><Trash2 size={14} /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-        </div>
+        </AdminPanel>
       </div>
 
-      {/* Edit dialog */}
-      <CourseEditDialog
-        course={editTarget}
-        open={!!editTarget}
-        onOpenChange={(o) => !o && setEditTarget(null)}
-        onSave={(name, classCode) => editTarget && saveM.mutate({ courseId: editTarget.id, name, classCode })}
-        saving={saveM.isPending}
-      />
+      <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>新建课程</DialogTitle></DialogHeader><div className="grid grid-cols-1 gap-4 py-2"><div className="space-y-1.5"><Label>课程名称</Label><Input value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} /></div><div className="space-y-1.5"><Label>班级码（可选）</Label><Input value={form.classCode} onChange={(e) => setForm((v) => ({ ...v, classCode: e.target.value }))} /></div><div className="space-y-1.5"><Label>授课教师</Label><Select value={form.teacherId || '__none__'} onValueChange={(value) => setForm((v) => ({ ...v, teacherId: value === '__none__' ? '' : value }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="__none__">暂不分配</SelectItem>{(usersQ.data || []).filter((user) => user.role === 'TEACHER' || user.role === 'ADMIN').map((user) => <SelectItem key={user.id} value={String(user.id)}>{user.name}</SelectItem>)}</SelectContent></Select></div></div><DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>取消</Button><Button disabled={!form.name.trim() || createM.isPending} onClick={() => createM.mutate()}>{createM.isPending ? '创建中...' : '创建课程'}</Button></DialogFooter></DialogContent></Dialog>
 
-      {/* Delete dialog */}
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>确认删除课程</DialogTitle></DialogHeader>
-          <div className="py-2 text-sm text-muted-foreground">
-            确定要删除课程 <strong>{deleteTarget?.name}</strong> 吗？相关班级成员、作业等信息也会被清除，此操作不可恢复。
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>取消</Button>
-            <Button variant="destructive" onClick={() => deleteTarget && deleteM.mutate(deleteTarget.id)} disabled={deleteM.isPending}>
-              {deleteM.isPending ? '删除中...' : '确认删除'}
-            </Button>
-          </DialogFooter>
+          <div className="py-2 text-sm text-muted-foreground">确定删除课程 <strong>{deleteTarget?.name}</strong> 吗？课程成员、团队、项目与作业等关联数据也会受到影响。</div>
+          <DialogFooter><Button variant="outline" onClick={() => setDeleteTarget(null)}>取消</Button><Button variant="destructive" onClick={() => deleteTarget && deleteM.mutate(deleteTarget.id)} disabled={deleteM.isPending}>{deleteM.isPending ? '删除中...' : '确认删除'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function CourseEditDialog({ course, open, onOpenChange, onSave, saving }: {
-  course: AdminCourseSummary | null;
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  onSave: (name: string, classCode: string) => void;
-  saving: boolean;
-}) {
-  const [name, setName] = React.useState('');
-  const [classCode, setClassCode] = React.useState('');
-
-  React.useEffect(() => {
-    if (course) { setName(course.name); setClassCode(course.classCode); }
-  }, [course]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>编辑课程</DialogTitle></DialogHeader>
-        <div className="space-y-3 py-2">
-          <div className="space-y-1.5">
-            <Label>课程名称</Label>
-            <Input value={name} onChange={e => setName(e.target.value)} placeholder="例如：软件工程" />
-          </div>
-          <div className="space-y-1.5">
-            <Label>班级码</Label>
-            <Input value={classCode} onChange={e => setClassCode(e.target.value)} placeholder="例如：SE2026" />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={() => onSave(name, classCode)} disabled={saving || !name.trim() || !classCode.trim()}>
-            {saving ? '保存中...' : '保存'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

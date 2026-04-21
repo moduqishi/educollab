@@ -96,9 +96,11 @@ public class ClassroomService {
   }
 
   public List<ClassRecord> classes(JwtPrincipal principal) {
-    List<CourseEntity> courses = principal.role() == UserRole.TEACHER
-        ? courseRepository.findByTeacherId(principal.userId())
-        : classMemberRepository.findByUserId(principal.userId()).stream().map(ClassMemberEntity::getCourse).distinct().toList();
+    List<CourseEntity> courses = principal.role() == UserRole.ADMIN
+        ? courseRepository.findAll()
+        : principal.role() == UserRole.TEACHER
+            ? courseRepository.findByTeacherId(principal.userId())
+            : classMemberRepository.findByUserId(principal.userId()).stream().map(ClassMemberEntity::getCourse).distinct().toList();
     return courses.stream().map(recordMapper::toClassRecord).toList();
   }
 
@@ -551,6 +553,7 @@ public class ClassroomService {
 
   public CourseEntity requireClassVisible(Long classId, JwtPrincipal principal) {
     CourseEntity course = courseRepository.findById(classId).orElseThrow(() -> new ApiException("班级不存在"));
+    if (principal.role() == UserRole.ADMIN) return course;
     if (principal.role() == UserRole.TEACHER && course.getTeacher() != null && course.getTeacher().getId().equals(principal.userId())) return course;
     if (classMemberRepository.findByCourseIdAndUserId(classId, principal.userId()).isPresent()) return course;
     throw new ApiException("无权访问该班级");
@@ -558,6 +561,9 @@ public class ClassroomService {
 
   public CourseEntity requireTeacherClass(Long classId, JwtPrincipal principal) {
     CourseEntity course = requireClassVisible(classId, principal);
+    if (principal.role() == UserRole.ADMIN) {
+      return course;
+    }
     if (principal.role() != UserRole.TEACHER || course.getTeacher() == null || !course.getTeacher().getId().equals(principal.userId())) {
       throw new ApiException("只有教师可以管理该班级");
     }

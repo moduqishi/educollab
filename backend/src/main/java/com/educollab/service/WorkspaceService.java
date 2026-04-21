@@ -108,7 +108,9 @@ public class WorkspaceService {
     }
 
     public List<TeamRecord> teams(JwtPrincipal principal) {
-        Set<Long> ids = principal.role() == UserRole.TEACHER
+        Set<Long> ids = principal.role() == UserRole.ADMIN
+            ? teamRepository.findAll().stream().map(TeamEntity::getId).collect(Collectors.toSet())
+            : principal.role() == UserRole.TEACHER
             ? visibleTeacherTeams(principal).stream()
                 .map(TeamEntity::getId)
                 .collect(Collectors.toSet())
@@ -258,6 +260,7 @@ public class WorkspaceService {
         TeamEntity team = requireTeamVisible(teamId, principal);
         boolean currentUserMember = teamMemberRepository.findByTeamIdAndUserId(teamId, principal.userId()).isPresent();
         boolean teacherView = canTeacherViewTeam(team, principal) && !currentUserMember;
+        boolean adminView = principal.role() == UserRole.ADMIN;
         ProjectEntity project = projectRepository.findByTeamId(teamId).orElse(null);
         List<TeamMemberRecord> members = teamMemberRepository.findByTeamId(teamId).stream()
             .map(member -> new TeamMemberRecord(
@@ -292,9 +295,10 @@ public class WorkspaceService {
             team.getLeader() != null ? team.getLeader().getName() : null,
             team.getStatus() != null ? team.getStatus().name() : null,
             team.getInviteCode(),
-            team.getLeader() != null && team.getLeader().getId().equals(principal.userId()),
+            adminView || (team.getLeader() != null && team.getLeader().getId().equals(principal.userId())),
             currentUserMember,
             teacherView,
+            adminView,
             members,
             linkedProject,
             tasks);
@@ -1061,6 +1065,9 @@ public class WorkspaceService {
 
     private TeamEntity requireTeamVisible(Long teamId, JwtPrincipal principal) {
         TeamEntity team = teamRepository.findById(teamId).orElseThrow(() -> new ApiException("团队不存在"));
+        if (principal.role() == UserRole.ADMIN) {
+            return team;
+        }
         if (canTeacherViewTeam(team, principal) || canCourseStudentViewTeam(team, principal)) {
             return team;
         }
@@ -1071,6 +1078,9 @@ public class WorkspaceService {
 
     private TeamEntity requireTeamLeader(Long teamId, JwtPrincipal principal) {
         TeamEntity team = requireTeamVisible(teamId, principal);
+        if (principal.role() == UserRole.ADMIN) {
+            return team;
+        }
         if (team.getLeader() == null || !team.getLeader().getId().equals(principal.userId())) {
             throw new ApiException("只有队长可以执行该操作");
         }
@@ -1079,6 +1089,9 @@ public class WorkspaceService {
 
     private void requireMilestoneManagePermission(ProjectEntity project, JwtPrincipal principal) {
         requireProjectEditable(project.getId(), principal);
+        if (principal.role() == UserRole.ADMIN) {
+            return;
+        }
         if (principal.role() == UserRole.TEACHER) {
             return;
         }
@@ -1096,6 +1109,9 @@ public class WorkspaceService {
 
     private TeamEntity requireTeamTaskEditor(Long teamId, JwtPrincipal principal) {
         TeamEntity team = teamRepository.findById(teamId).orElseThrow(() -> new ApiException("团队不存在"));
+        if (principal.role() == UserRole.ADMIN) {
+            return team;
+        }
         if (principal.role() == UserRole.TEACHER) {
             throw new ApiException("教师视图仅支持查看团队任务");
         }
@@ -1202,7 +1218,7 @@ public class WorkspaceService {
 
     private List<GitService.CommitView> safeListCommits(Long projectId) {
         try {
-            return gitService.listCommits(projectId);
+            return gitService.listCommits(projectId, null);
         } catch (ApiException ex) {
             return List.of();
         }

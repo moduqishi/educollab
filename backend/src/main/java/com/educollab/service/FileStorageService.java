@@ -8,6 +8,7 @@ import com.educollab.model.AssignmentSubmissionEntity;
 import com.educollab.model.FileAssetEntity;
 import com.educollab.model.FileOwnerType;
 import com.educollab.model.ProjectEntity;
+import com.educollab.model.StorageScopeType;
 import com.educollab.model.UserRole;
 import com.educollab.repo.AssignmentSubmissionRepository;
 import com.educollab.repo.ChatRoomRepository;
@@ -16,6 +17,7 @@ import com.educollab.repo.DiscussionPostRepository;
 import com.educollab.repo.DocumentRepository;
 import com.educollab.repo.FileAssetRepository;
 import com.educollab.repo.TaskRepository;
+import com.educollab.repo.TeamRepository;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,8 +41,10 @@ public class FileStorageService {
   private final AssignmentSubmissionRepository assignmentSubmissionRepository;
   private final ChatRoomRepository chatRoomRepository;
   private final ClassMemberRepository classMemberRepository;
+  private final TeamRepository teamRepository;
   private final ProjectAccessService projectAccessService;
   private final ProjectActivityService projectActivityService;
+  private final StorageService storageService;
   private final Path root;
   private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -52,8 +56,10 @@ public class FileStorageService {
       AssignmentSubmissionRepository assignmentSubmissionRepository,
       ChatRoomRepository chatRoomRepository,
       ClassMemberRepository classMemberRepository,
+      TeamRepository teamRepository,
       ProjectAccessService projectAccessService,
       ProjectActivityService projectActivityService,
+      StorageService storageService,
       @Value("${app.file-storage.root:./data/uploads}") String rootDir) {
     this.fileAssetRepository = fileAssetRepository;
     this.taskRepository = taskRepository;
@@ -62,32 +68,19 @@ public class FileStorageService {
     this.assignmentSubmissionRepository = assignmentSubmissionRepository;
     this.chatRoomRepository = chatRoomRepository;
     this.classMemberRepository = classMemberRepository;
+    this.teamRepository = teamRepository;
     this.projectAccessService = projectAccessService;
     this.projectActivityService = projectActivityService;
+    this.storageService = storageService;
     this.root = Path.of(rootDir);
   }
 
   @Transactional
   public FileAssetRecord store(MultipartFile file, FileOwnerType ownerType, Long ownerId) {
     ensureWritable(ownerType, ownerId);
-    try {
-      Files.createDirectories(root);
-      String generatedName = UUID.randomUUID() + "-" + file.getOriginalFilename();
-      Path target = root.resolve(generatedName);
-      file.transferTo(target);
-      FileAssetEntity entity = new FileAssetEntity();
-      entity.setOwnerType(ownerType);
-      entity.setOwnerId(ownerId);
-      entity.setFileName(file.getOriginalFilename());
-      entity.setStoragePath(target.toString());
-      entity.setMimeType(file.getContentType());
-      entity.setSizeBytes(file.getSize());
-      fileAssetRepository.save(entity);
-      recordUploadActivity(entity);
-      return toRecord(entity);
-    } catch (IOException ex) {
-      throw new ApiException("文件上传失败: " + ex.getMessage());
-    }
+    FileAssetRecord record = storageService.storeOwnedFile(file, ownerType, ownerId, SecurityUtils.principal());
+    fileAssetRepository.findById(record.id()).ifPresent(this::recordUploadActivity);
+    return record;
   }
 
   @Transactional
@@ -100,23 +93,7 @@ public class FileStorageService {
     if (fileName == null || fileName.isBlank()) {
       throw new ApiException("fileName 不能为空");
     }
-    try {
-      Files.createDirectories(root);
-      String generatedName = UUID.randomUUID() + "-" + fileName;
-      Path target = root.resolve(generatedName);
-      Files.copy(new ByteArrayInputStream(bytes), target);
-      FileAssetEntity entity = new FileAssetEntity();
-      entity.setOwnerType(ownerType);
-      entity.setOwnerId(ownerId);
-      entity.setFileName(fileName);
-      entity.setStoragePath(target.toString());
-      entity.setMimeType(mimeType);
-      entity.setSizeBytes((long) bytes.length);
-      fileAssetRepository.save(entity);
-      return toRecord(entity);
-    } catch (IOException ex) {
-      throw new ApiException("文件保存失败: " + ex.getMessage());
-    }
+    return storageService.storeOwnedBytes(bytes, fileName, mimeType, ownerType, ownerId, SecurityUtils.principal());
   }
 
   @Transactional
@@ -152,6 +129,7 @@ public class FileStorageService {
       throw new ApiException("删除附件失败: " + ex.getMessage());
     }
     fileAssetRepository.delete(entity);
+    storageService.onFileAssetDeleted(entity);
   }
 
   @Transactional
@@ -170,6 +148,7 @@ public class FileStorageService {
       throw new ApiException("删除附件失败: " + ex.getMessage());
     }
     fileAssetRepository.delete(entity);
+    storageService.onFileAssetDeleted(entity);
   }
 
   public List<FileAssetRecord> list(FileOwnerType ownerType, Long ownerId) {
@@ -220,6 +199,19 @@ public class FileStorageService {
 
   private void ensureWritable(FileOwnerType ownerType, Long ownerId) {
     JwtPrincipal principal = SecurityUtils.principal();
+    if (ownerType == FileOwnerType.COURSE) {
+      storageService.workspace(StorageScopeType.COURSE, ownerId, false, principal);
+      if (principal.role() != UserRole.ADMIN
+          && !(principal.role() == UserRole.TEACHER
+              && classMemberRepository.findByCourseIdAndUserId(ownerId, principal.userId()).isPresent())) {
+        // rely on storage service create/write checks later
+      }
+      return;
+    }
+    if (ownerType == FileOwnerType.TEAM) {
+      storageService.workspace(StorageScopeType.TEAM, ownerId, false, principal);
+      return;
+    }
     if (ownerType == FileOwnerType.ASSIGNMENT_SUBMISSION) {
       ensureAssignmentSubmissionVisible(ownerId, principal);
       return;
@@ -234,6 +226,14 @@ public class FileStorageService {
 
   private void ensureVisible(FileOwnerType ownerType, Long ownerId) {
     JwtPrincipal principal = SecurityUtils.principal();
+    if (ownerType == FileOwnerType.COURSE) {
+      storageService.workspace(StorageScopeType.COURSE, ownerId, false, principal);
+      return;
+    }
+    if (ownerType == FileOwnerType.TEAM) {
+      storageService.workspace(StorageScopeType.TEAM, ownerId, false, principal);
+      return;
+    }
     if (ownerType == FileOwnerType.ASSIGNMENT_SUBMISSION) {
       ensureAssignmentSubmissionVisible(ownerId, principal);
       return;
@@ -254,6 +254,9 @@ public class FileStorageService {
       throw new ApiException("ownerId 不能为空");
     }
     switch (ownerType) {
+      case COURSE:
+      case TEAM:
+        return null;
       case PROJECT:
         return ownerId;
       case TASK:
@@ -330,6 +333,7 @@ public class FileStorageService {
       return null;
     }
     return switch (ownerType) {
+      case COURSE, TEAM -> null;
       case PROJECT -> projectAccessService.requireVisible(ownerId, SecurityUtils.principal());
       case TASK -> taskRepository.findById(ownerId).map(task -> task.getProject()).orElse(null);
       case DOCUMENT -> documentRepository.findById(ownerId).map(document -> document.getProject()).orElse(null);
@@ -338,4 +342,35 @@ public class FileStorageService {
       case CHAT_MESSAGE -> null;
     };
   }
+
+  private ScopeRef resolveScope(FileOwnerType ownerType, Long ownerId) {
+    if (ownerType == null || ownerId == null) {
+      return new ScopeRef(null, null, null);
+    }
+    return switch (ownerType) {
+      case COURSE -> new ScopeRef(ownerId, null, null);
+      case TEAM -> teamRepository.findById(ownerId).map(team -> new ScopeRef(team.getCourse() != null ? team.getCourse().getId() : null, team.getId(), null)).orElse(new ScopeRef(null, null, null));
+      case PROJECT -> projectAccessService.requireVisible(ownerId, SecurityUtils.principal()) != null
+          ? scopeFromProject(projectAccessService.requireVisible(ownerId, SecurityUtils.principal()))
+          : new ScopeRef(null, null, null);
+      case TASK -> taskRepository.findById(ownerId).map(task -> scopeFromProject(task.getProject())).orElse(new ScopeRef(null, null, null));
+      case DOCUMENT -> documentRepository.findById(ownerId).map(document -> scopeFromProject(document.getProject())).orElse(new ScopeRef(null, null, null));
+      case DISCUSSION_POST -> discussionPostRepository.findById(ownerId).map(post -> scopeFromProject(post.getProject())).orElse(new ScopeRef(null, null, null));
+      case ASSIGNMENT_SUBMISSION -> assignmentSubmissionRepository.findById(ownerId)
+          .map(submission -> submission.getLinkedProject() != null
+              ? scopeFromProject(submission.getLinkedProject())
+              : new ScopeRef(submission.getAssignment() != null && submission.getAssignment().getCourse() != null ? submission.getAssignment().getCourse().getId() : null, null, null))
+          .orElse(new ScopeRef(null, null, null));
+      case CHAT_MESSAGE -> new ScopeRef(null, null, null);
+    };
+  }
+
+  private ScopeRef scopeFromProject(ProjectEntity project) {
+    return new ScopeRef(
+        project != null && project.getCourse() != null ? project.getCourse().getId() : null,
+        project != null && project.getTeam() != null ? project.getTeam().getId() : null,
+        project != null ? project.getId() : null);
+  }
+
+  private record ScopeRef(Long courseId, Long teamId, Long projectId) {}
 }

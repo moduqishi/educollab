@@ -107,3 +107,28 @@
     @apply font-display font-semibold tracking-tight;
   }
 }
+
+
+@layer components {
+  #onlyoffice-editor,
+  #onlyoffice-editor > div,
+  #onlyoffice-editor iframe,
+  #onlyoffice-editor iframe html,
+  #onlyoffice-editor iframe body {
+    height: 100% !important;
+    min-height: 820px;
+  }
+
+  #onlyoffice-editor {
+    position: relative;
+    overflow: visible !important;
+  }
+
+  #onlyoffice-editor iframe[name="frameEditor"] {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 820px !important;
+    border: 0;
+  }
+}
