@@ -15,22 +15,31 @@ stop_managed_service() {
 
   local pid
   pid="$(cat "$pid_file")"
+  rm -f "$pid_file"
 
-  if kill -0 "$pid" >/dev/null 2>&1; then
-    if kill "$pid" >/dev/null 2>&1; then
-      echo "[EduCollab] 已停止 $service (pid=$pid)"
-    else
-      echo "[EduCollab] 停止 $service 失败 (pid=$pid)"
-    fi
-  else
-    echo "[EduCollab] $service 进程不存在，清理残留 pid (pid=$pid)"
+  if [[ -z "$pid" ]]; then
+    echo "[EduCollab] $service pid 文件为空，已清理。"
+    return 0
   fi
 
-  rm -f "$pid_file"
+  if kill -0 "$pid" >/dev/null 2>&1; then
+    kill "$pid" >/dev/null 2>&1 || true
+    for _ in {1..20}; do
+      if ! kill -0 "$pid" >/dev/null 2>&1; then
+        echo "[EduCollab] 已停止 $service (pid=$pid)"
+        return 0
+      fi
+      sleep 1
+    done
+    echo "[EduCollab][WARN] $service 未在超时时间内退出，强制结束 (pid=$pid)"
+    kill -9 "$pid" >/dev/null 2>&1 || true
+  else
+    echo "[EduCollab] $service 进程不存在，已清理残留 pid (pid=$pid)"
+  fi
 }
 
 for service in frontend backend collab-server; do
   stop_managed_service "$service"
 done
 
-echo "[EduCollab] 本机服务已停止。"
+echo "[EduCollab] 应用服务已停止（MySQL 保持运行）。"

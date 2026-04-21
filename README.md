@@ -109,6 +109,16 @@ docker run -d --name educollab-monolith \
 
 依赖：MySQL、Node.js、npm、Java 21、Maven
 
+启动脚本会自动完成：
+- 检查 `java` / `mvn` / `node` / `npm` / `mysql` / `mysqladmin` / `curl` / `lsof`
+- `frontend/`、`collab-server/` 缺依赖时自动执行 `npm install`
+- 自动尝试启动本机 MySQL（优先 `brew services start mysql`，失败后回退 `mysql.server start`）
+- 自动初始化 `educollab` 数据库与本机开发用户
+- 若数据库为空，则首次自动补齐 demo 数据；后续启动默认复用现有数据，不重复重建
+- 按 `collab-server -> backend -> frontend` 顺序拉起，并在健康检查通过后才报告成功
+
+> 注意：本机一键启动会忽略 `.env` 里的容器用 `DB_URL`，统一改用 `MYSQL_HOST` / `MYSQL_PORT` 拼出本机 MySQL 连接串。
+
 ```bash
 chmod +x scripts/*.sh
 ./scripts/dev-local-up.sh
@@ -121,6 +131,13 @@ chmod +x scripts/*.sh
 ```
 
 日志：`.local-run/`（`backend.log` / `frontend.log` / `collab-server.log`）
+
+可覆盖的本机启动变量：
+- `MYSQL_HOST`（默认 `127.0.0.1`）
+- `MYSQL_PORT`（默认 `3306`）
+- `MYSQL_ROOT_USER`（默认 `root`）
+- `MYSQL_ROOT_PASSWORD`（默认空）
+- `DEMO_SEED_MODE`（默认自动判定空库时 `ENSURE_DEMO`，否则 `OFF`）
 
 ---
 
@@ -332,7 +349,9 @@ cp .env.example .env
 - Docker：5173/8080/1234/3306
 
 2) **本机 MySQL 未启动**
-- `scripts/dev-local-up.sh` 会提示：`brew services start mysql`
+- `scripts/dev-local-up.sh` 会先自动尝试 `brew services start mysql`
+- 若还失败，会继续尝试 `mysql.server start`
+- 两种方式都失败时才会退出，并打印明确错误
 
 3) **AI 调用失败 / 没配置 Key**
 - 后端会明确报错：`AI 模型未配置，请设置 API Key`

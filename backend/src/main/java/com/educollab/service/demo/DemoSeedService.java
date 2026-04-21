@@ -750,7 +750,7 @@ public class DemoSeedService {
       ProjectFixture completedProject,
       ProjectFixture planningProject,
       ProjectFixture uxProject) {
-    AssignmentEntity proposal = createAssignment(mainCourse, null, "项目立项书", "提交选题背景、目标用户、核心价值与分工。", "https://educollab.local/submission/proposal", LocalDate.now().minusWeeks(5), AssignmentStatus.CLOSED, weeksAgoAt(7, DayOfWeek.MONDAY, 9, 0));
+    AssignmentEntity proposal = createAssignment(mainCourse, mainProject.project, "项目立项书", "提交选题背景、目标用户、核心价值与分工。", "https://educollab.local/submission/proposal", LocalDate.now().minusWeeks(5), AssignmentStatus.CLOSED, weeksAgoAt(7, DayOfWeek.MONDAY, 9, 0));
     AssignmentEntity midterm = createAssignment(mainCourse, mainProject.project, "中期演示", "提交当前演示包、项目链接与本周总结。", "https://educollab.local/submission/midterm", LocalDate.now().minusWeeks(2), AssignmentStatus.CLOSED, weeksAgoAt(4, DayOfWeek.MONDAY, 10, 0));
     AssignmentEntity finalPack = createAssignment(mainCourse, mainProject.project, "最终交付包", "提交最终代码、文档、录屏与项目总结。", "https://educollab.local/submission/final", LocalDate.now().plusDays(5), AssignmentStatus.OPEN, weeksAgoAt(1, DayOfWeek.MONDAY, 10, 0));
     AssignmentEntity uxReview = createAssignment(auxCourse, uxProject.project, "交互原型评审", "提交高保真原型链接、可用性结论与阶段总结。", "https://educollab.local/submission/ux-review", LocalDate.now().plusDays(4), AssignmentStatus.OPEN, weeksAgoAt(2, DayOfWeek.MONDAY, 11, 0));
