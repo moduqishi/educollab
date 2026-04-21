@@ -9,6 +9,7 @@ import { PageError, PageLoading, PageEmpty } from '@/screens/common/States';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { deriveAssignmentCoursesFromAssignments } from './teacherAssignmentCourseUtils';
 
 export function TeacherDashboardPage() {
   const api = useApi();
@@ -16,10 +17,23 @@ export function TeacherDashboardPage() {
   React.useEffect(() => setTitle(['教师工作台']), []);
 
   const q = useQuery({ queryKey: ['teacherOverview'], queryFn: () => api.teacherOverview() });
+  const assignmentCoursesQ = useQuery({
+    queryKey: ['teacherAssignmentCourses'],
+    queryFn: () => api.assignmentCourses(),
+  });
+  const assignmentsFallbackQ = useQuery({
+    queryKey: ['teacherAssignments'],
+    queryFn: () => api.assignments(),
+  });
   if (q.isLoading) return <PageLoading label="正在加载教师数据..." />;
   if (q.isError) return <PageError title="教师数据加载失败" onRetry={() => q.refetch()} />;
 
   const data = q.data!;
+  const assignmentCourses =
+    assignmentCoursesQ.data ||
+    (assignmentsFallbackQ.data
+      ? deriveAssignmentCoursesFromAssignments(assignmentsFallbackQ.data)
+      : []);
 
   return (
     <div>
@@ -33,9 +47,52 @@ export function TeacherDashboardPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
             <Metric title="项目总数" value={data.totalProjects} icon={FolderKanban} onClick={() => navigate('/app/projects')} />
             <Metric title="活跃学生" value={data.activeStudents} icon={Users} onClick={() => navigate('/app/classes')} />
-            <Metric title="待处理评审" value={data.pendingReviews} icon={ClipboardCheck} onClick={() => navigate('/app/teacher/feedback')} />
+            <Metric title="待处理评审" value={data.pendingReviews} icon={ClipboardCheck} onClick={() => navigate('/app/teacher/assignments')} />
             <Metric title="平均进度" value={`${data.averageProgress}%`} icon={GraduationCap} onClick={() => navigate('/app/projects')} />
           </div>
+
+          <Card className="border-muted/70">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <ClipboardCheck size={16} />
+                课程作业入口
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {assignmentCoursesQ.isLoading && assignmentsFallbackQ.isLoading ? (
+                <div className="text-sm text-muted-foreground">正在加载课程作业...</div>
+              ) : !assignmentCourses.length ? (
+                <PageEmpty title="暂无课程作业" message="先创建课程并发布作业，这里会按课程展示批阅入口。" icon={ClipboardCheck} />
+              ) : (
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {assignmentCourses.map((course) => (
+                    <button
+                      key={course.classId}
+                      className="rounded-2xl border bg-muted/20 p-4 text-left transition-all hover:bg-muted/30 hover:shadow-sm"
+                      onClick={() => navigate(`/app/teacher/assignments?courseId=${course.classId}`)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold">{course.className}</div>
+                          <div className="mt-1 truncate text-sm text-muted-foreground">
+                            作业 {course.assignmentCount} · 开放中 {course.openAssignmentCount} · 已关闭 {course.closedAssignmentCount}
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="border-primary/15 bg-primary/5 text-primary">
+                          {course.pendingSubmissions} 待批改
+                        </Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
+                        <span>正式提交 {course.totalSubmissions}</span>
+                        <span>已评分 {course.gradedSubmissions}</span>
+                        <span>最近截止 {course.latestDueDate || '未设置'}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="border-muted/70">
             <CardHeader className="pb-3">
@@ -46,7 +103,7 @@ export function TeacherDashboardPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {!data.projects.length ? (
-                <PageEmpty title="暂无项目" message="学生在组队任务中创建项目后，这里会展示整体概览。" icon={FolderKanban} />
+                <PageEmpty title="暂无项目" message="学生在团队下创建项目后，这里会展示整体概览。" icon={FolderKanban} />
               ) : (
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   {data.projects.map((project) => (

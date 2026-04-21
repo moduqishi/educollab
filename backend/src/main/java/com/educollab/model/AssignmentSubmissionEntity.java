@@ -31,6 +31,14 @@ public class AssignmentSubmissionEntity extends BaseEntity {
   @JoinColumn(name = "student_id", nullable = false)
   private UserEntity student;
 
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "linked_project_id")
+  private ProjectEntity linkedProject;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "linked_document_id")
+  private DocumentEntity linkedDocument;
+
   @Column(columnDefinition = "TEXT")
   private String content;
 
@@ -73,6 +81,22 @@ public class AssignmentSubmissionEntity extends BaseEntity {
 
   public void setStudent(UserEntity student) {
     this.student = student;
+  }
+
+  public ProjectEntity getLinkedProject() {
+    return linkedProject;
+  }
+
+  public void setLinkedProject(ProjectEntity linkedProject) {
+    this.linkedProject = linkedProject;
+  }
+
+  public DocumentEntity getLinkedDocument() {
+    return linkedDocument;
+  }
+
+  public void setLinkedDocument(DocumentEntity linkedDocument) {
+    this.linkedDocument = linkedDocument;
   }
 
   public String getContent() {

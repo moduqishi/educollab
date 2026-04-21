@@ -4,12 +4,16 @@ import com.educollab.common.security.JwtPrincipal;
 import com.educollab.common.util.SecurityUtils;
 import com.educollab.repo.GitRepositoryRepository;
 import com.educollab.repo.ProjectMemberRepository;
+import com.educollab.service.GitService;
+import com.educollab.service.ProjectActivityService;
 import com.educollab.service.WorkspaceService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.File;
+import java.util.List;
 import org.eclipse.jgit.errors.RepositoryNotFoundException;
 import org.eclipse.jgit.http.server.GitServlet;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
+import org.eclipse.jgit.transport.ReceiveCommand;
 import org.eclipse.jgit.transport.ReceivePack;
 import org.eclipse.jgit.transport.UploadPack;
 import org.eclipse.jgit.transport.resolver.ServiceNotAuthorizedException;
@@ -26,7 +30,9 @@ public class GitHttpConfig {
   public ServletRegistrationBean<GitServlet> gitServlet(
       GitRepositoryRepository gitRepositoryRepository,
       WorkspaceService workspaceService,
-      ProjectMemberRepository projectMemberRepository
+      ProjectMemberRepository projectMemberRepository,
+      GitService gitService,
+      ProjectActivityService projectActivityService
   ) {
     GitServlet servlet = new GitServlet();
 
@@ -68,6 +74,23 @@ public class GitHttpConfig {
 
       ReceivePack rp = new ReceivePack(repository);
       rp.setAllowCreates(true);
+      rp.setPostReceiveHook((receivePack, commands) -> {
+        List<ProjectActivityService.GitCommitActivity> commitActivities =
+            commands.stream()
+                .filter(command -> command.getResult() == ReceiveCommand.Result.OK)
+                .filter(command -> command.getType() != ReceiveCommand.Type.DELETE)
+                .flatMap(command -> gitService.listNewCommits(projectId, command.getOldId().name(), command.getNewId().name(), shortBranch(command.getRefName())).stream())
+                .map(commit -> new ProjectActivityService.GitCommitActivity(
+                    commit.hash(),
+                    commit.message(),
+                    commit.branch(),
+                    commit.authorName(),
+                    commit.linesAdded(),
+                    commit.linesDeleted(),
+                    commit.occurredAt()))
+                .toList();
+        projectActivityService.recordGitPushCommits(projectId, principal.userId(), commitActivities);
+      });
       return rp;
     });
 
@@ -75,5 +98,12 @@ public class GitHttpConfig {
     reg.setName("gitServlet");
     reg.setLoadOnStartup(1);
     return reg;
+  }
+
+  private String shortBranch(String refName) {
+    if (refName == null) {
+      return "main";
+    }
+    return refName.replace("refs/heads/", "").replace("refs/remotes/origin/", "");
   }
 }

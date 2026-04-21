@@ -3,12 +3,14 @@ import type {
   AssignmentSubmissionRecord,
   ClassDetail,
   ClassInvitation,
+  ClassProjectRecord,
   ClassRecord,
   GroupTaskRecord,
   GroupTaskSubTaskRecord,
   GroupTaskTeamDetail,
   GroupTaskTeamRecord,
   ProjectRecord,
+  TeamRecord,
 } from '../types';
 import type { RequestClient } from './base';
 
@@ -24,12 +26,24 @@ export function createClassroomApi(request: RequestClient) {
     acceptClassInvitation: (id: number) => request<void>(`/api/classes/invitations/${id}/accept`, { method: 'POST' }),
     rejectClassInvitation: (id: number) => request<void>(`/api/classes/invitations/${id}/reject`, { method: 'POST' }),
     classAssignments: (id: number) => request<AssignmentRecord[]>(`/api/classes/${id}/assignments`),
+    classTeams: (id: number) => request<TeamRecord[]>(`/api/classes/${id}/teams`),
+    classProjects: (id: number) => request<ClassProjectRecord[]>(`/api/classes/${id}/projects`),
     createAssignment: (id: number, payload: { title: string; summary: string; submissionUrl?: string; dueDate?: string }) =>
       request<AssignmentRecord>(`/api/classes/${id}/assignments`, { method: 'POST', body: JSON.stringify(payload) }),
+    updateAssignment: (classId: number, assignmentId: number, payload: { title: string; summary: string; submissionUrl?: string; dueDate?: string }) =>
+      request<AssignmentRecord>(`/api/classes/${classId}/assignments/${assignmentId}`, { method: 'PUT', body: JSON.stringify(payload) }),
+    deleteClassAssignment: (classId: number, assignmentId: number) =>
+      request<void>(`/api/classes/${classId}/assignments/${assignmentId}`, { method: 'DELETE' }),
+    closeAssignment: (classId: number, assignmentId: number) =>
+      request<AssignmentRecord>(`/api/classes/${classId}/assignments/${assignmentId}/close`, { method: 'POST' }),
+    reopenAssignment: (classId: number, assignmentId: number) =>
+      request<AssignmentRecord>(`/api/classes/${classId}/assignments/${assignmentId}/reopen`, { method: 'POST' }),
     myAssignmentSubmission: (classId: number, assignmentId: number) =>
       request<AssignmentSubmissionRecord>(`/api/classes/${classId}/assignments/${assignmentId}/submissions/me`),
-    saveMyAssignmentSubmission: (classId: number, assignmentId: number, payload: { content?: string; submissionUrl?: string }) =>
-      request<AssignmentSubmissionRecord>(`/api/classes/${classId}/assignments/${assignmentId}/submissions/me`, { method: 'PUT', body: JSON.stringify(payload) }),
+    saveMyAssignmentDraft: (classId: number, assignmentId: number, payload: { content?: string; submissionUrl?: string; linkedProjectId?: number | null; linkedDocumentId?: number | null }) =>
+      request<AssignmentSubmissionRecord>(`/api/classes/${classId}/assignments/${assignmentId}/submissions/me/draft`, { method: 'PUT', body: JSON.stringify(payload) }),
+    submitMyAssignment: (classId: number, assignmentId: number, payload: { content?: string; submissionUrl?: string; linkedProjectId?: number | null; linkedDocumentId?: number | null }) =>
+      request<AssignmentSubmissionRecord>(`/api/classes/${classId}/assignments/${assignmentId}/submissions/me/submit`, { method: 'POST', body: JSON.stringify(payload) }),
     deleteMyAssignmentAttachment: (classId: number, assignmentId: number, fileId: number) =>
       request<AssignmentSubmissionRecord>(`/api/classes/${classId}/assignments/${assignmentId}/submissions/me/attachments/${fileId}`, { method: 'DELETE' }),
     assignmentSubmissions: (classId: number, assignmentId: number) =>

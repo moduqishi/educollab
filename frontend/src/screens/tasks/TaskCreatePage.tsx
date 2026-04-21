@@ -46,6 +46,8 @@ export function TaskCreatePage() {
           onSave={async (form) => {
             await saveM.mutateAsync({
               projectId: form.projectId!,
+              milestoneId: form.milestoneId || undefined,
+              parentTaskId: form.parentTaskId || undefined,
               title: form.title.trim(),
               description: form.description.trim(),
               status: form.status,

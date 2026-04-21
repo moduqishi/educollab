@@ -13,16 +13,28 @@ export function AssignmentsTab({
   detail,
   isTeacher,
   onCreateAssignment,
+  onUpdateAssignment,
+  onDeleteAssignment,
+  onCloseAssignment,
+  onReopenAssignment,
 }: {
   detail: ClassDetail;
   isTeacher: boolean;
-  onRefresh: () => Promise<unknown>;
   onCreateAssignment: (payload: {
     title: string;
     summary: string;
     submissionUrl?: string;
     dueDate?: string;
   }) => Promise<unknown>;
+  onUpdateAssignment: (assignmentId: number, payload: {
+    title: string;
+    summary: string;
+    submissionUrl?: string;
+    dueDate?: string;
+  }) => Promise<unknown>;
+  onDeleteAssignment: (assignmentId: number) => Promise<unknown>;
+  onCloseAssignment: (assignmentId: number) => Promise<unknown>;
+  onReopenAssignment: (assignmentId: number) => Promise<unknown>;
 }) {
   const navigate = useNavigate();
 
@@ -78,6 +90,7 @@ export function AssignmentsTab({
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
               {isTeacher ? (
                 <>
+                  <span>状态：{assignment.status === 'CLOSED' ? '已关闭' : '开放中'}</span>
                   <span>已提交 {assignment.totalSubmissions ?? 0}</span>
                   <span>已评分 {assignment.gradedSubmissions ?? 0}</span>
                 </>
@@ -98,6 +111,31 @@ export function AssignmentsTab({
                 {isTeacher ? '进入批阅页' : '进入作业页'}
                 <ArrowRight size={14} className="ml-1" />
               </Button>
+              {isTeacher ? (
+                <>
+                  <AssignmentDialog
+                    mode="edit"
+                    initialValue={{
+                      title: assignment.title,
+                      summary: assignment.summary,
+                      submissionUrl: assignment.submissionUrl,
+                      dueDate: assignment.dueDate || '',
+                    }}
+                    triggerLabel="编辑"
+                    dialogTitle="编辑作业"
+                    submitLabel="保存"
+                    onSubmit={(payload) => onUpdateAssignment(assignment.id, payload)}
+                  />
+                  {assignment.status === 'CLOSED' ? (
+                    <Button variant="outline" onClick={() => onReopenAssignment(assignment.id)}>重新开放</Button>
+                  ) : (
+                    <Button variant="outline" onClick={() => onCloseAssignment(assignment.id)}>关闭提交</Button>
+                  )}
+                  <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => onDeleteAssignment(assignment.id)}>
+                    删除
+                  </Button>
+                </>
+              ) : null}
               <div className="text-xs text-muted-foreground">
                 {isTeacher
                   ? '在详情页里查看全班提交、评分和退回修改。'

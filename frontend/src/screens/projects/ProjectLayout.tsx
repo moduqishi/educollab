@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Outlet, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BarChart3, CheckSquare, FileText, GitBranch, MessageSquare, Share2, Settings, Users, Package } from 'lucide-react';
 import { useApi } from '@/app/api';
@@ -25,6 +25,7 @@ export function useProjectDetail() {
 export function ProjectLayout() {
   const api = useApi();
   const nav = useNavigate();
+  const location = useLocation();
   const { projectId } = useParams();
   const id = Number(projectId);
   const qc = useQueryClient();
@@ -37,11 +38,27 @@ export function ProjectLayout() {
   });
 
   const detail = q.data;
+  const backTo = detail?.project.teamId
+    ? `/app/teams/${detail.project.teamId}/overview`
+    : detail?.project.courseId
+      ? `/app/projects?courseId=${detail.project.courseId}`
+      : '/app/projects';
 
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['projectDetail', id] });
     await qc.invalidateQueries({ queryKey: ['projects'] });
   };
+
+  const currentPageKey = React.useMemo(() => {
+    const parts = location.pathname.split('/').filter(Boolean);
+    const idx = parts.findIndex((item) => item === 'projects');
+    return idx >= 0 && parts.length > idx + 2 ? parts[idx + 2] : 'overview';
+  }, [location.pathname]);
+
+  React.useEffect(() => {
+    if (!detail) return;
+    void api.trackProjectVisit(id, currentPageKey);
+  }, [api, currentPageKey, detail, id]);
 
   if (q.isLoading || !detail) {
     return <div className="px-8 py-10 text-muted-foreground">{q.isLoading ? '正在加载项目...' : '项目不存在或无权访问。'}</div>;
@@ -52,6 +69,7 @@ export function ProjectLayout() {
   const tabs = [
     { to: `/app/projects/${id}/overview`, label: '概览', icon: BarChart3 },
     { to: `/app/projects/${id}/tasks`, label: '任务', icon: CheckSquare },
+    { to: `/app/projects/${id}/reports`, label: '总结', icon: FileText },
     { to: `/app/projects/${id}/discussions`, label: '讨论', icon: MessageSquare },
     { to: `/app/projects/${id}/documents`, label: '文档', icon: FileText },
     { to: `/app/projects/${id}/messages`, label: '消息', icon: MessageSquare },
@@ -67,13 +85,15 @@ export function ProjectLayout() {
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav('/app/projects')} title="返回项目列表">
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => nav(backTo)} title={detail.project.teamId ? '返回所属团队' : '返回项目列表'}>
                   <ArrowLeft size={18} />
                 </Button>
                 <Badge variant="outline" className="rounded-full">
                   {isCode ? '代码项目' : '非代码项目'}
                 </Badge>
+                {!detail?.currentUserCanEdit ? <Badge variant="secondary" className="rounded-full">只读查看</Badge> : null}
                 <span className="truncate">{detail.project.courseName || '未关联课程'}</span>
+                {detail.project.teamName ? <span className="truncate">/ {detail.project.teamName}</span> : null}
               </div>
               <h1 className="mt-2 truncate text-4xl font-display font-bold tracking-tight">{detail.project.name}</h1>
             </div>

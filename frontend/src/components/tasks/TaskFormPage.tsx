@@ -1,4 +1,5 @@
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   CalendarDays,
   ChevronLeft,
@@ -7,6 +8,7 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
+import { useAuth } from '@/app/auth';
 import { useApi } from '@/app/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +22,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import type { FileAssetRecord, ProjectRecord, TaskRecord, UserProfile } from '@/lib/types';
+import type {
+  FileAssetRecord,
+  ProjectMilestoneRecord,
+  ProjectRecord,
+  TaskRecord,
+  TaskTreeRecord,
+  UserProfile,
+} from '@/lib/types';
 
 export const taskStatusLabel: Record<TaskRecord['status'], string> = {
   TODO: '待开始',
@@ -37,6 +46,8 @@ export const taskPriorityLabel: Record<TaskRecord['priority'], string> = {
 
 type TaskFormState = {
   projectId: number | null;
+  milestoneId: number | null;
+  parentTaskId: number | null;
   title: string;
   description: string;
   status: TaskRecord['status'];
@@ -49,8 +60,10 @@ export function TaskFormPage({
   heading,
   description,
   projects,
+  milestones = [],
   users,
   initialValue,
+  editingTaskId,
   fixedProjectId,
   saving,
   attachments,
@@ -58,16 +71,20 @@ export function TaskFormPage({
   uploadingAttachment,
   deletingAttachmentId,
   attachmentError,
+  deleting,
   onBack,
   onSave,
+  onDelete,
   onUploadAttachment,
   onDeleteAttachment,
 }: {
   heading: string;
   description: string;
   projects: ProjectRecord[];
+  milestones?: ProjectMilestoneRecord[];
   users: UserProfile[];
   initialValue?: Partial<TaskFormState> | null;
+  editingTaskId?: number;
   fixedProjectId?: number;
   saving?: boolean;
   attachments?: FileAssetRecord[];
@@ -75,15 +92,21 @@ export function TaskFormPage({
   uploadingAttachment?: boolean;
   deletingAttachmentId?: number | null;
   attachmentError?: string | null;
+  deleting?: boolean;
   onBack: () => void;
   onSave: (payload: TaskFormState) => Promise<void>;
+  onDelete?: () => Promise<void>;
   onUploadAttachment?: (file: File) => Promise<void>;
   onDeleteAttachment?: (fileId: number) => Promise<void>;
 }) {
   const api = useApi();
+  const { session } = useAuth();
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const showPriority = session?.profile.role !== 'STUDENT';
   const [form, setForm] = React.useState<TaskFormState>({
     projectId: fixedProjectId ?? initialValue?.projectId ?? null,
+    milestoneId: initialValue?.milestoneId ?? milestones[0]?.id ?? null,
+    parentTaskId: initialValue?.parentTaskId ?? null,
     title: initialValue?.title ?? '',
     description: initialValue?.description ?? '',
     status: initialValue?.status ?? 'TODO',
@@ -95,6 +118,8 @@ export function TaskFormPage({
   React.useEffect(() => {
     setForm({
       projectId: fixedProjectId ?? initialValue?.projectId ?? null,
+      milestoneId: initialValue?.milestoneId ?? milestones[0]?.id ?? null,
+      parentTaskId: initialValue?.parentTaskId ?? null,
       title: initialValue?.title ?? '',
       description: initialValue?.description ?? '',
       status: initialValue?.status ?? 'TODO',
@@ -102,7 +127,55 @@ export function TaskFormPage({
       assigneeId: initialValue?.assigneeId ?? null,
       dueDate: initialValue?.dueDate ?? '',
     });
-  }, [fixedProjectId, initialValue]);
+  }, [fixedProjectId, initialValue, milestones]);
+
+  const projectDetailQ = useQuery({
+    queryKey: ['projectDetail', form.projectId],
+    queryFn: () => api.projectDetail(form.projectId as number),
+    enabled: !!form.projectId,
+  });
+
+  const activeMilestones = React.useMemo(() => {
+    const source = projectDetailQ.data?.milestones ?? milestones;
+    return source;
+  }, [projectDetailQ.data?.milestones, milestones]);
+
+  React.useEffect(() => {
+    if (!activeMilestones.length) {
+      setForm((current) => ({ ...current, milestoneId: null, parentTaskId: null }));
+      return;
+    }
+    setForm((current) => {
+      const milestoneExists = current.milestoneId
+        ? activeMilestones.some((milestone) => milestone.id === current.milestoneId)
+        : false;
+      const nextMilestoneId =
+        current.milestoneId && milestoneExists
+          ? current.milestoneId
+          : initialValue?.milestoneId ?? activeMilestones[0]?.id ?? null;
+      const parentStillValid =
+        current.parentTaskId && nextMilestoneId
+          ? collectParentCandidates(projectDetailQ.data?.milestoneTaskGroups || [], nextMilestoneId, editingTaskId).some(
+              (item) => item.id === current.parentTaskId,
+            )
+          : false;
+      return {
+        ...current,
+        milestoneId: nextMilestoneId,
+        parentTaskId: parentStillValid ? current.parentTaskId : null,
+      };
+    });
+  }, [activeMilestones, initialValue?.milestoneId, projectDetailQ.data?.milestoneTaskGroups, editingTaskId]);
+
+  const parentCandidates = React.useMemo(
+    () =>
+      collectParentCandidates(
+        projectDetailQ.data?.milestoneTaskGroups || [],
+        form.milestoneId,
+        editingTaskId,
+      ),
+    [projectDetailQ.data?.milestoneTaskGroups, form.milestoneId, editingTaskId],
+  );
 
   const canSubmit = !!form.projectId && !!form.title.trim();
   const attachmentBusy = !!uploadingAttachment || !!deletingAttachmentId;
@@ -136,9 +209,26 @@ export function TaskFormPage({
             <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           </div>
         </div>
-        <Button type="button" onClick={() => onSave(form)} disabled={!canSubmit || saving}>
-          {saving ? '保存中...' : '保存任务'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onDelete ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-1 text-rose-600 hover:text-rose-700"
+              disabled={!!deleting}
+              onClick={async () => {
+                if (!window.confirm('确认删除这条任务吗？')) return;
+                await onDelete();
+              }}
+            >
+              <Trash2 size={14} />
+              {deleting ? '删除中...' : '删除任务'}
+            </Button>
+          ) : null}
+          <Button type="button" onClick={() => onSave(form)} disabled={!canSubmit || saving}>
+            {saving ? '保存中...' : '保存任务'}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr,360px]">
@@ -153,7 +243,12 @@ export function TaskFormPage({
                 <Select
                   value={form.projectId ? String(form.projectId) : ''}
                   onValueChange={(value) =>
-                    setForm((current) => ({ ...current, projectId: Number(value) }))
+                    setForm((current) => ({
+                      ...current,
+                      projectId: Number(value),
+                      milestoneId: null,
+                      parentTaskId: null,
+                    }))
                   }
                 >
                   <SelectTrigger>
@@ -214,21 +309,81 @@ export function TaskFormPage({
               </Select>
             </div>
 
+            {showPriority ? (
+              <div className="space-y-2">
+                <Label>优先级</Label>
+                <Select
+                  value={form.priority}
+                  onValueChange={(value: TaskRecord['priority']) =>
+                    setForm((current) => ({ ...current, priority: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue>{taskPriorityLabel[form.priority]}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(taskPriorityLabel) as TaskRecord['priority'][]).map((priority) => (
+                      <SelectItem key={priority} value={priority}>
+                        {taskPriorityLabel[priority]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
             <div className="space-y-2">
-              <Label>优先级</Label>
+              <Label>所属里程碑</Label>
               <Select
-                value={form.priority}
-                onValueChange={(value: TaskRecord['priority']) =>
-                  setForm((current) => ({ ...current, priority: value }))
+                value={form.milestoneId ? String(form.milestoneId) : ''}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    milestoneId: Number(value),
+                    parentTaskId: null,
+                  }))
                 }
               >
                 <SelectTrigger>
-                  <SelectValue>{taskPriorityLabel[form.priority]}</SelectValue>
+                  <SelectValue placeholder="请选择里程碑">
+                    {form.milestoneId
+                      ? activeMilestones.find((milestone) => milestone.id === form.milestoneId)?.title ?? '请选择里程碑'
+                      : '请选择里程碑'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {(Object.keys(taskPriorityLabel) as TaskRecord['priority'][]).map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {taskPriorityLabel[priority]}
+                  {activeMilestones.map((milestone) => (
+                    <SelectItem key={milestone.id} value={String(milestone.id)}>
+                      {milestone.title} · 权重 {milestone.weight}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>父任务</Label>
+              <Select
+                value={form.parentTaskId ? String(form.parentTaskId) : 'root'}
+                onValueChange={(value) =>
+                  setForm((current) => ({
+                    ...current,
+                    parentTaskId: value === 'root' ? null : Number(value),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="作为根任务">
+                    {form.parentTaskId
+                      ? parentCandidates.find((item) => item.id === form.parentTaskId)?.label ?? '作为根任务'
+                      : '作为根任务'}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="root">作为根任务</SelectItem>
+                  {parentCandidates.map((candidate) => (
+                    <SelectItem key={candidate.id} value={String(candidate.id)}>
+                      {candidate.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -288,7 +443,7 @@ export function TaskFormPage({
                 使用建议
               </div>
               <div className="mt-2">
-                标题尽量使用动词开头，描述里写清验收标准，负责人和截止日期尽量都补齐。
+                标题尽量使用动词开头；里程碑决定当前阶段；父任务用于组织树形结构，完成时需要先清空下级任务。
               </div>
             </div>
 
@@ -384,4 +539,30 @@ function formatFileSize(sizeBytes?: number | null) {
     index += 1;
   }
   return `${value >= 10 || index === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[index]}`;
+}
+
+function collectParentCandidates(
+  groups: { milestone: ProjectMilestoneRecord; rootTasks: TaskTreeRecord[] }[],
+  milestoneId: number | null,
+  editingTaskId?: number,
+) {
+  if (!milestoneId) return [];
+  const group = groups.find((item) => item.milestone.id === milestoneId);
+  if (!group) return [];
+  const result: Array<{ id: number; label: string }> = [];
+
+  const walk = (nodes: TaskTreeRecord[], depth = 0) => {
+    for (const node of nodes) {
+      if (node.task.id !== editingTaskId && node.task.status !== 'DONE') {
+        result.push({
+          id: node.task.id,
+          label: `${'— '.repeat(depth)}${node.task.title}`,
+        });
+      }
+      walk(node.children, depth + 1);
+    }
+  };
+
+  walk(group.rootTasks);
+  return result;
 }

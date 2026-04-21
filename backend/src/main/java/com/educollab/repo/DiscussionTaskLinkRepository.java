@@ -9,5 +9,5 @@ public interface DiscussionTaskLinkRepository extends JpaRepository<DiscussionTa
   List<DiscussionTaskLinkEntity> findByPostIdOrderByCreatedAtDesc(Long postId);
   Optional<DiscussionTaskLinkEntity> findByPostIdAndTaskId(Long postId, Long taskId);
   long countByPostId(Long postId);
+  void deleteByTaskId(Long taskId);
 }
-

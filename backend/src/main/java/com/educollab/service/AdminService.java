@@ -270,6 +270,9 @@ public class AdminService {
         }
 
         task = taskRepository.save(task);
+        if (task.getProject() != null) {
+            refreshProjectProgress(task.getProject().getId());
+        }
         return new TaskSummary(
                 task.getId(),
                 task.getTitle(),
@@ -285,10 +288,13 @@ public class AdminService {
     @Transactional
     public void deleteTask(JwtPrincipal principal, Long taskId) {
         requireAdmin(principal);
-        if (!taskRepository.existsById(taskId)) {
-            throw new ApiException("任务不存在");
+        TaskEntity task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("任务不存在"));
+        Long projectId = task.getProject() != null ? task.getProject().getId() : null;
+        taskRepository.delete(task);
+        if (projectId != null) {
+            refreshProjectProgress(projectId);
         }
-        taskRepository.deleteById(taskId);
     }
 
     // ==================== DISCUSSION MANAGEMENT ====================
@@ -373,5 +379,16 @@ public class AdminService {
             throw new ApiException("作业不存在");
         }
         assignmentRepository.deleteById(assignmentId);
+    }
+
+    private void refreshProjectProgress(Long projectId) {
+        ProjectEntity project = projectRepository.findById(projectId).orElse(null);
+        if (project == null) return;
+        List<TaskEntity> tasks = taskRepository.findByProjectId(projectId);
+        int progress = tasks.isEmpty() ? 0 : (int) Math.round(tasks.stream()
+                .filter(task -> task.getStatus() == TaskStatus.DONE)
+                .count() * 100.0 / tasks.size());
+        project.setProgress(progress);
+        projectRepository.save(project);
     }
 }

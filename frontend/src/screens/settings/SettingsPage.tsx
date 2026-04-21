@@ -69,8 +69,9 @@ export function SettingsPage() {
       setSettings(updated);
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
       queryClient.setQueryData(['user-settings-profile', token], (old: unknown) => {
-        if (!old || !(old as { profile?: { settings?: UserSettingsRecord } }).profile) return old;
-        return { ...old, profile: { ...((old as { profile: { settings?: UserSettingsRecord } }).profile), settings: updated } };
+        if (!old || typeof old !== 'object') return old;
+        const profile = old as { settings?: UserSettingsRecord } & Record<string, unknown>;
+        return { ...profile, settings: updated };
       });
     },
     onError: (err: Error) => setError(err.message || '\u8bbe\u7f6e\u4fdd\u5b58\u5931\u8d25'),

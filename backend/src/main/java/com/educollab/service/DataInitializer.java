@@ -15,6 +15,7 @@ import com.educollab.model.TaskEntity;
 import com.educollab.model.TaskPriority;
 import com.educollab.model.TaskStatus;
 import com.educollab.model.TeamEntity;
+import com.educollab.model.TeamSource;
 import com.educollab.model.TeamMemberEntity;
 import com.educollab.model.TeamStatus;
 import com.educollab.model.TeacherFeedbackEntity;
@@ -34,10 +35,12 @@ import com.educollab.repo.UserRepository;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
+@Order(100)
 public class DataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
@@ -139,6 +142,8 @@ public class DataInitializer implements CommandLineRunner {
         ensureTask(aiProject, xulaoliu, "负责成员邀请与权限治理", "完善项目成员邀请、移除和队长权限控制。", TaskStatus.IN_PROGRESS, TaskPriority.HIGH);
         ensureTask(aiProject, alex, "修复仓库克隆弹窗", "整理克隆地址、认证说明和访问令牌交互。", TaskStatus.TODO, TaskPriority.MEDIUM);
         ensureTask(campusProject, liam, "整理班级展示资料", "完善成员资料和展示文案。", TaskStatus.DONE, TaskPriority.MEDIUM);
+        refreshProjectProgress(aiProject);
+        refreshProjectProgress(campusProject);
 
         ensureAssignment(course, aiProject);
         ensureFeedback(aiProject, teacher);
@@ -229,7 +234,11 @@ public class DataInitializer implements CommandLineRunner {
         team.setName(name);
         team.setCourse(course);
         team.setLeader(leader);
+        team.setSource(TeamSource.COURSE);
         team.setStatus(TeamStatus.FORMING);
+        if (team.getGroupOrder() == null || team.getGroupOrder() <= 0) {
+            team.setGroupOrder(nextCourseTeamOrder(course.getId()));
+        }
         return teamRepository.save(team);
     }
 
@@ -275,6 +284,21 @@ public class DataInitializer implements CommandLineRunner {
         task.setStatus(status);
         task.setPriority(priority);
         taskRepository.save(task);
+    }
+
+    private int nextCourseTeamOrder(Long courseId) {
+        return teamRepository.findByCourseIdOrderByCreatedAtAsc(courseId).stream()
+            .map(TeamEntity::getGroupOrder)
+            .filter(Objects::nonNull)
+            .max(Integer::compareTo)
+            .orElse(0) + 1;
+    }
+
+    private void refreshProjectProgress(ProjectEntity project) {
+        List<TaskEntity> tasks = taskRepository.findByProjectId(project.getId());
+        int progress = tasks.isEmpty() ? 0 : (int) Math.round(tasks.stream().filter(task -> task.getStatus() == TaskStatus.DONE).count() * 100.0 / tasks.size());
+        project.setProgress(progress);
+        projectRepository.save(project);
     }
 
     private void ensureAssignment(CourseEntity course, ProjectEntity project) {

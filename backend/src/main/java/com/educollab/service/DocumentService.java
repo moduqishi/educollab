@@ -28,9 +28,10 @@ public class DocumentService {
     private final NotificationService notificationService;
     private final FileStorageService fileStorageService;
     private final FileAssetRepository fileAssetRepository;
+    private final ProjectActivityService projectActivityService;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    public DocumentService(DocumentRepository documentRepository, DocumentVersionRepository documentVersionRepository, ProjectRepository projectRepository, WorkspaceService workspaceService, AuthService authService, NotificationService notificationService, FileStorageService fileStorageService, FileAssetRepository fileAssetRepository) {
+    public DocumentService(DocumentRepository documentRepository, DocumentVersionRepository documentVersionRepository, ProjectRepository projectRepository, WorkspaceService workspaceService, AuthService authService, NotificationService notificationService, FileStorageService fileStorageService, FileAssetRepository fileAssetRepository, ProjectActivityService projectActivityService) {
         this.documentRepository = documentRepository;
         this.documentVersionRepository = documentVersionRepository;
         this.projectRepository = projectRepository;
@@ -39,11 +40,12 @@ public class DocumentService {
         this.notificationService = notificationService;
         this.fileStorageService = fileStorageService;
         this.fileAssetRepository = fileAssetRepository;
+        this.projectActivityService = projectActivityService;
     }
 
     @Transactional
     public DocumentRecord create(DocumentSaveRequest request, JwtPrincipal principal) {
-        ProjectEntity project = workspaceService.requireVisible(request.projectId(), principal);
+        ProjectEntity project = workspaceService.requireProjectEditable(request.projectId(), principal);
         DocumentEntity entity = new DocumentEntity();
         entity.setProject(project);
         entity.setTitle(request.title());
@@ -52,12 +54,13 @@ public class DocumentService {
         entity.setCollabKey("doc-" + UUID.randomUUID());
         entity.setKind(DocumentKind.NOTE);
         documentRepository.save(entity);
+        projectActivityService.recordDocumentCreated(project, entity.getId(), entity.getTitle(), principal.userId(), entity.getCreatedAt());
         return workspaceService.toDocumentRecord(entity);
     }
 
     @Transactional
     public DocumentRecord createOffice(Long projectId, String title, String ext, MultipartFile file, JwtPrincipal principal) {
-        ProjectEntity project = workspaceService.requireVisible(projectId, principal);
+        ProjectEntity project = workspaceService.requireProjectEditable(projectId, principal);
         if (title == null || title.isBlank()) throw new ApiException("title 不能为空");
         String normalizedExt = (ext == null ? "" : ext.trim().toLowerCase());
         if (!List.of("docx", "xlsx", "pptx").contains(normalizedExt)) throw new ApiException("ext 仅支持 docx/xlsx/pptx");
@@ -78,6 +81,7 @@ public class DocumentService {
             : storeOfficeTemplate(entity.getId(), entity.getTitle(), normalizedExt);
         entity.setFileAssetId(stored.id());
         documentRepository.save(entity);
+        projectActivityService.recordDocumentCreated(project, entity.getId(), entity.getTitle(), principal.userId(), entity.getCreatedAt());
 
         return workspaceService.toDocumentRecord(entity);
     }
@@ -104,7 +108,7 @@ public class DocumentService {
     @Transactional
     public DocumentRecord update(Long documentId, DocumentUpdateRequest request, JwtPrincipal principal) {
         DocumentEntity entity = documentRepository.findById(documentId).orElseThrow(() -> new ApiException("文档不存在"));
-        workspaceService.requireVisible(entity.getProject().getId(), principal);
+        workspaceService.requireProjectEditable(entity.getProject().getId(), principal);
         if (request.title() != null && !request.title().isBlank()) {
             entity.setTitle(request.title().trim());
         }
@@ -121,7 +125,7 @@ public class DocumentService {
     @Transactional
     public DocumentRecord autosave(Long documentId, DocumentAutosaveRequest request, JwtPrincipal principal) {
         DocumentEntity entity = documentRepository.findById(documentId).orElseThrow(() -> new ApiException("文档不存在"));
-        workspaceService.requireVisible(entity.getProject().getId(), principal);
+        workspaceService.requireProjectEditable(entity.getProject().getId(), principal);
         entity.setCurrentContent(request.currentContent());
         entity.setExcerpt(request.excerpt() != null && !request.excerpt().isBlank() ? request.excerpt() : excerpt(request.currentContent()));
         documentRepository.save(entity);
@@ -157,7 +161,7 @@ public class DocumentService {
     @Transactional
     public DocumentVersionRecord saveVersion(Long documentId, String label, String content, JwtPrincipal principal) {
         DocumentEntity entity = documentRepository.findById(documentId).orElseThrow(() -> new ApiException("文档不存在"));
-        workspaceService.requireVisible(entity.getProject().getId(), principal);
+        workspaceService.requireProjectEditable(entity.getProject().getId(), principal);
         DocumentVersionEntity version = new DocumentVersionEntity();
         version.setDocument(entity);
         version.setLabel(label);
@@ -170,6 +174,7 @@ public class DocumentService {
         }
         version.setCreatedBy(authService.getUser(principal.userId()));
         documentVersionRepository.save(version);
+        projectActivityService.recordDocumentVersionSaved(version, principal.userId());
         return new DocumentVersionRecord(version.getId(), version.getLabel(), version.getCreatedBy().getName(), formatter.format(version.getCreatedAt()), version.getSnapshotContent(), version.getFileAssetId());
     }
 
@@ -183,7 +188,7 @@ public class DocumentService {
     public DocumentRecord applyVersion(Long versionId, JwtPrincipal principal) {
         DocumentVersionEntity version = documentVersionRepository.findById(versionId).orElseThrow(() -> new ApiException("版本不存在"));
         DocumentEntity doc = version.getDocument();
-        workspaceService.requireVisible(doc.getProject().getId(), principal);
+        workspaceService.requireProjectEditable(doc.getProject().getId(), principal);
 
         if (doc.getKind() == DocumentKind.OFFICE) {
             if (version.getFileAssetId() == null) throw new ApiException("该版本不包含 Office 文件快照");
@@ -199,7 +204,7 @@ public class DocumentService {
     @Transactional
     public DocumentRecord saveOfficeFile(Long documentId, MultipartFile file, boolean createVersion, String versionLabel, JwtPrincipal principal) {
         DocumentEntity entity = documentRepository.findById(documentId).orElseThrow(() -> new ApiException("文档不存在"));
-        workspaceService.requireVisible(entity.getProject().getId(), principal);
+        workspaceService.requireProjectEditable(entity.getProject().getId(), principal);
         if (entity.getKind() != DocumentKind.OFFICE) throw new ApiException("该文档不是 Office 类型");
         if (file == null || file.isEmpty()) throw new ApiException("请上传文件");
 
@@ -212,6 +217,7 @@ public class DocumentService {
             version.setFileAssetId(entity.getFileAssetId());
             version.setCreatedBy(authService.getUser(principal.userId()));
             documentVersionRepository.save(version);
+            projectActivityService.recordDocumentVersionSaved(version, principal.userId());
         }
 
         var stored = fileStorageService.store(file, FileOwnerType.DOCUMENT, entity.getId());
@@ -225,7 +231,7 @@ public class DocumentService {
     @Transactional
     public void delete(Long documentId, JwtPrincipal principal) {
         DocumentEntity entity = documentRepository.findById(documentId).orElseThrow(() -> new ApiException("文档不存在"));
-        workspaceService.requireVisible(entity.getProject().getId(), principal);
+        workspaceService.requireProjectEditable(entity.getProject().getId(), principal);
         // delete document-owned files (primary office file, attachments, etc.)
         fileStorageService.deleteAllForOwner(FileOwnerType.DOCUMENT, entity.getId());
         // delete versions

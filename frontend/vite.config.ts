@@ -7,6 +7,8 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const apiTarget = env.VITE_API_BASE_URL || 'http://localhost:8080';
+  const collabTarget = env.VITE_COLLAB_BASE_URL || 'ws://localhost:1234';
 
   const vendorChunkGroups: Array<[string, string[]]> = [
     [
@@ -191,6 +193,24 @@ export default defineConfig(({mode}) => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify; file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/actuator': {
+          target: apiTarget,
+          changeOrigin: true,
+          secure: false,
+        },
+        '/collab': {
+          target: collabTarget,
+          changeOrigin: true,
+          secure: false,
+          ws: true,
+        },
+      },
     },
     build: {
       rollupOptions: {

@@ -5,14 +5,14 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import type { GroupTaskTeamDetail, WeeklyReportRecord } from '@/lib/types';
+import type { TeamDetailRecord, WeeklyReportRecord } from '@/lib/types';
 import type { TeamProjectFormPayload, TeamTaskFormPayload, WeeklyReportDraft } from './types';
 
 export function CreateTaskDialog({
   members,
   onSubmit,
 }: {
-  members: GroupTaskTeamDetail['members'];
+  members: TeamDetailRecord['members'];
   onSubmit: (payload: TeamTaskFormPayload) => Promise<unknown>;
 }) {
   return <TaskDialog triggerLabel="新建任务" members={members} onSubmit={onSubmit} />;
@@ -23,8 +23,8 @@ export function EditTaskDialog({
   members,
   onSubmit,
 }: {
-  task: GroupTaskTeamDetail['tasks'][number];
-  members: GroupTaskTeamDetail['members'];
+  task: TeamDetailRecord['tasks'][number];
+  members: TeamDetailRecord['members'];
   onSubmit: (payload: TeamTaskFormPayload) => Promise<unknown>;
 }) {
   return <TaskDialog triggerLabel="编辑" members={members} initialValue={task} onSubmit={onSubmit} />;
@@ -37,8 +37,8 @@ function TaskDialog({
   onSubmit,
 }: {
   triggerLabel: string;
-  members: GroupTaskTeamDetail['members'];
-  initialValue?: GroupTaskTeamDetail['tasks'][number];
+  members: TeamDetailRecord['members'];
+  initialValue?: TeamDetailRecord['tasks'][number];
   onSubmit: (payload: TeamTaskFormPayload) => Promise<unknown>;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -114,7 +114,7 @@ export function TransferLeaderInline({
   members,
   onSubmit,
 }: {
-  members: GroupTaskTeamDetail['members'];
+  members: TeamDetailRecord['members'];
   onSubmit: (leaderUserId: number) => Promise<unknown>;
 }) {
   const [leaderUserId, setLeaderUserId] = React.useState('');

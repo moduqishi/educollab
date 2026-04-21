@@ -6,4 +6,5 @@ public interface ProjectRepository extends JpaRepository<ProjectEntity, Long> {
  List<ProjectEntity> findByCourseTeacherId(Long teacherId);
  java.util.Optional<ProjectEntity> findByTeamId(Long teamId);
  List<ProjectEntity> findByTeamGroupTaskId(Long groupTaskId);
+ List<ProjectEntity> findByCourseIdOrderByCreatedAtAsc(Long courseId);
 }

@@ -5,11 +5,13 @@ import com.educollab.dto.WorkspaceDtos.AssignmentRecord;
 import com.educollab.dto.WorkspaceDtos.AssignmentSubmissionRecord;
 import com.educollab.dto.WorkspaceDtos.FileAssetRecord;
 import com.educollab.model.AssignmentEntity;
+import com.educollab.model.AssignmentStatus;
 import com.educollab.model.AssignmentSubmissionEntity;
 import com.educollab.model.AssignmentSubmissionStatus;
 import com.educollab.model.ClassMemberEntity;
 import com.educollab.model.ClassMemberRole;
 import com.educollab.model.FileOwnerType;
+import com.educollab.model.ProjectType;
 import com.educollab.model.UserEntity;
 import com.educollab.model.UserRole;
 import com.educollab.repo.AssignmentSubmissionRepository;
@@ -40,7 +42,11 @@ public class AssignmentSubmissionRecordMapper {
     List<AssignmentSubmissionEntity> submissions =
         assignmentSubmissionRepository.findByAssignmentId(entity.getId());
     AssignmentSubmissionEntity currentUserSubmission = resolveCurrentUserSubmission(submissions, principal);
-    int totalSubmissions = submissions.size();
+    int totalSubmissions =
+        (int)
+            submissions.stream()
+                .filter(item -> item.getStatus() != AssignmentSubmissionStatus.DRAFT)
+                .count();
     int gradedSubmissions =
         (int)
             submissions.stream()
@@ -62,6 +68,8 @@ public class AssignmentSubmissionRecordMapper {
         entity.getSummary(),
         entity.getSubmissionUrl(),
         entity.getDueDate() != null ? entity.getDueDate().toString() : null,
+        entity.getStatus() != null ? entity.getStatus().name() : AssignmentStatus.OPEN.name(),
+        entity.getStatus() != AssignmentStatus.CLOSED,
         formatter.format(entity.getCreatedAt()),
         currentUserSubmission != null
             ? currentUserSubmission.getStatus().name()
@@ -91,6 +99,16 @@ public class AssignmentSubmissionRecordMapper {
         entity.getContent(),
         entity.getSubmissionUrl(),
         entity.getStatus().name(),
+        entity.getLinkedProject() != null ? entity.getLinkedProject().getId() : null,
+        entity.getLinkedProject() != null ? entity.getLinkedProject().getName() : null,
+        entity.getLinkedDocument() != null ? entity.getLinkedDocument().getId() : null,
+        entity.getLinkedDocument() != null ? entity.getLinkedDocument().getTitle() : null,
+        entity.getLinkedProject() != null && entity.getLinkedProject().getType() == ProjectType.CODE
+            ? entity.getLinkedProject().getName()
+            : null,
+        entity.getLinkedProject() != null && entity.getLinkedProject().getType() == ProjectType.CODE
+            ? "/app/projects/" + entity.getLinkedProject().getId() + "/repository/files"
+            : null,
         entity.getScore(),
         entity.getTeacherFeedback(),
         entity.getSubmittedAt() != null ? formatter.format(entity.getSubmittedAt()) : null,
@@ -111,6 +129,12 @@ public class AssignmentSubmissionRecordMapper {
         "",
         "",
         "NOT_SUBMITTED",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null,
         null,
         null,

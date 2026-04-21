@@ -32,7 +32,7 @@ export function notificationSourceTypeLabel(type?: string | null) {
     case 'ASSIGNMENT':
       return '作业';
     case 'GROUP_TASK':
-      return '组队任务';
+      return '团队协作';
     case 'CLASS':
       return '班级';
     case 'PROJECT':

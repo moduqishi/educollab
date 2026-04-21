@@ -107,6 +107,8 @@ public class ClassroomRecordMapper {
             entity.getSummary(),
             entity.getSubmissionUrl(),
             entity.getDueDate() != null ? entity.getDueDate().toString() : null,
+            entity.getStatus() != null ? entity.getStatus().name() : "OPEN",
+            entity.getStatus() == null || entity.getStatus().name().equals("OPEN"),
             formatter.format(entity.getCreatedAt()),
             null,
             null,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { UserMinus, UserCog } from 'lucide-react';
 import { useApi } from '@/app/api';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -12,19 +12,18 @@ import { useTeamDetail } from './TeamDetailLayout';
 export function TeamMembersTab() {
   const { detail, currentUserId, refresh } = useTeamDetail();
   const api = useApi();
-  const qc = useQueryClient();
   const [kickUserId, setKickUserId] = React.useState<number | null>(null);
   const [kickUserName, setKickUserName] = React.useState('');
   const [kickError, setKickError] = React.useState('');
 
   const kickM = useMutation({
-    mutationFn: (userId: number) => api.removeGroupTaskTeamMember(detail.id, userId),
+    mutationFn: (userId: number) => api.removeTeamMember(detail.id, userId),
     onSuccess: async () => { setKickUserId(null); await refresh(); },
     onError: (err: Error) => setKickError(err.message),
   });
 
   const transferM = useMutation({
-    mutationFn: (leaderUserId: number) => api.transferGroupTaskLeader(detail.id, leaderUserId),
+    mutationFn: (leaderUserId: number) => api.transferTeamLeader(detail.id, leaderUserId),
     onSuccess: async () => { await refresh(); },
   });
 

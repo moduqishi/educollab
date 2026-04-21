@@ -34,6 +34,15 @@ export function TaskEditPage() {
     },
   });
 
+  const deleteM = useMutation({
+    mutationFn: () => api.deleteProjectTask(id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['tasks'] });
+      await qc.invalidateQueries({ queryKey: ['projectDetail'] });
+      await qc.invalidateQueries({ queryKey: ['taskFiles', id] });
+    },
+  });
+
   const uploadM = useMutation({
     mutationFn: (file: File) => api.uploadFile('TASK', id, file),
     onSuccess: async () => {
@@ -104,6 +113,8 @@ export function TaskEditPage() {
           fixedProjectId={task.projectId}
           initialValue={{
             projectId: task.projectId,
+            milestoneId: task.milestoneId ?? null,
+            parentTaskId: task.parentTaskId ?? null,
             title: task.title,
             description: task.description,
             status: task.status,
@@ -111,16 +122,20 @@ export function TaskEditPage() {
             assigneeId: task.assigneeId ?? null,
             dueDate: task.dueDate || '',
           }}
+          editingTaskId={task.id}
           saving={saveM.isPending}
           attachments={attachmentsQ.data || []}
           loadingAttachments={attachmentsQ.isLoading}
           uploadingAttachment={uploadM.isPending}
           deletingAttachmentId={deleteAttachmentM.isPending ? deleteAttachmentM.variables : null}
           attachmentError={attachmentError}
+          deleting={deleteM.isPending}
           onBack={() => navigate('/app/tasks')}
           onSave={async (form) => {
             await saveM.mutateAsync({
               projectId: form.projectId!,
+              milestoneId: form.milestoneId || undefined,
+              parentTaskId: form.parentTaskId || undefined,
               title: form.title.trim(),
               description: form.description.trim(),
               status: form.status,
@@ -128,6 +143,10 @@ export function TaskEditPage() {
               assigneeId: form.assigneeId || undefined,
               dueDate: form.dueDate || undefined,
             });
+            navigate('/app/tasks');
+          }}
+          onDelete={async () => {
+            await deleteM.mutateAsync();
             navigate('/app/tasks');
           }}
           onUploadAttachment={async (file) => {

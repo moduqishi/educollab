@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL,
   avatar VARCHAR(255),
+  preferences JSON,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -41,7 +42,9 @@ CREATE TABLE IF NOT EXISTS teams (
   course_id BIGINT,
   group_task_id BIGINT,
   leader_id BIGINT,
+  source VARCHAR(20) NOT NULL DEFAULT 'STANDALONE',
   status VARCHAR(20) NOT NULL DEFAULT 'FORMING',
+  group_order INT,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -65,6 +68,19 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
+CREATE TABLE IF NOT EXISTS project_milestones (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  title VARCHAR(120) NOT NULL,
+  description TEXT,
+  sort_order INT NOT NULL DEFAULT 0,
+  weight INT NOT NULL DEFAULT 1,
+  status VARCHAR(20) NOT NULL DEFAULT 'LOCKED',
+  activated_at DATETIME,
+  completed_at DATETIME,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL
+);
 CREATE TABLE IF NOT EXISTS project_members (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT NOT NULL,
@@ -72,15 +88,40 @@ CREATE TABLE IF NOT EXISTS project_members (
   owner_flag BOOLEAN NOT NULL DEFAULT FALSE,
   UNIQUE KEY uk_project_member (project_id, user_id)
 );
+CREATE TABLE IF NOT EXISTS project_activity_events (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id BIGINT NOT NULL,
+  course_id BIGINT,
+  team_id BIGINT,
+  user_id BIGINT,
+  event_type VARCHAR(40) NOT NULL,
+  target_type VARCHAR(40),
+  target_id BIGINT,
+  target_title VARCHAR(255),
+  event_count INT,
+  lines_added INT,
+  lines_deleted INT,
+  detail_json TEXT,
+  dedupe_key VARCHAR(255) UNIQUE,
+  occurred_at DATETIME NOT NULL,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_project_activity_project_time ON project_activity_events (project_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_project_activity_user_time ON project_activity_events (user_id, occurred_at);
 CREATE TABLE IF NOT EXISTS tasks (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   project_id BIGINT NOT NULL,
+  milestone_id BIGINT,
+  parent_task_id BIGINT,
+  sort_order INT NOT NULL DEFAULT 0,
   title VARCHAR(150) NOT NULL,
   description TEXT,
   status VARCHAR(20) NOT NULL,
   assignee_id BIGINT,
   priority VARCHAR(20),
   due_date DATE,
+  completed_at DATETIME,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -175,6 +216,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   summary TEXT,
   submission_url VARCHAR(255),
   due_date DATE,
+  status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL
 );
@@ -182,6 +224,8 @@ CREATE TABLE IF NOT EXISTS assignment_submissions (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   assignment_id BIGINT NOT NULL,
   student_id BIGINT NOT NULL,
+  linked_project_id BIGINT,
+  linked_document_id BIGINT,
   content TEXT,
   submission_url VARCHAR(255),
   status VARCHAR(20) NOT NULL,
@@ -288,9 +332,12 @@ ALTER TABLE teams ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT '
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS group_task_id BIGINT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS course_id BIGINT;
 ALTER TABLE assignments ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE assignments ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'OPEN';
 ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS content TEXT;
 ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS submission_url VARCHAR(255);
-ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'SUBMITTED';
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS linked_project_id BIGINT;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS linked_document_id BIGINT;
+ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'DRAFT';
 ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS score INT;
 ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS teacher_feedback TEXT;
 ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS submitted_at DATETIME;
@@ -298,6 +345,12 @@ ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS reviewed_at DATETIME
 ALTER TABLE assignment_submissions ADD COLUMN IF NOT EXISTS attempt_count INT NOT NULL DEFAULT 0;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_type VARCHAR(20);
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_id BIGINT;
+ALTER TABLE project_milestones ADD COLUMN IF NOT EXISTS weight INT NOT NULL DEFAULT 1;
+ALTER TABLE project_milestones ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'LOCKED';
+ALTER TABLE project_milestones ADD COLUMN IF NOT EXISTS activated_at DATETIME;
+ALTER TABLE project_milestones ADD COLUMN IF NOT EXISTS completed_at DATETIME;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS parent_task_id BIGINT;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0;
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_path VARCHAR(255);
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS source_label VARCHAR(100);
 

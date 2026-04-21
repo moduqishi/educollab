@@ -10,9 +10,11 @@ import com.educollab.repo.GitRepositoryRepository;
 import com.educollab.repo.MergeRequestRepository;
 import com.educollab.repo.ProjectReleaseRepository;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -21,12 +23,18 @@ import java.util.Comparator;
 import java.util.List;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand;
+import org.eclipse.jgit.diff.DiffEntry;
+import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.diff.Edit;
 import org.eclipse.jgit.internal.storage.file.FileRepository;
 import org.eclipse.jgit.lib.Constants;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.eclipse.jgit.revwalk.RevSort;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -165,6 +173,50 @@ public class GitService {
         }
     }
 
+    public List<CommitStatsView> listNewCommits(Long projectId, String oldRevision, String newRevision, String branch) {
+        GitRepositoryEntity repo = findRepository(projectId);
+        if (repo == null) return List.of();
+        try (var repository = new FileRepository(repo.getBarePath()); var revWalk = new RevWalk(repository)) {
+            ObjectId newId = newRevision == null ? null : repository.resolve(newRevision);
+            if (newId == null) return List.of();
+            RevCommit newCommit = revWalk.parseCommit(newId);
+            List<RevCommit> commits = new ArrayList<>();
+            if (oldRevision != null && !oldRevision.isBlank() && !ObjectId.zeroId().name().equals(oldRevision)) {
+                ObjectId oldId = repository.resolve(oldRevision);
+                if (oldId != null) {
+                    RevCommit oldCommit = revWalk.parseCommit(oldId);
+                    revWalk.reset();
+                    revWalk.markStart(newCommit);
+                    revWalk.markUninteresting(oldCommit);
+                    revWalk.sort(RevSort.TOPO);
+                    revWalk.sort(RevSort.REVERSE, true);
+                    for (RevCommit commit : revWalk) {
+                        commits.add(revWalk.parseCommit(commit.getId()));
+                    }
+                }
+            } else {
+                commits.add(newCommit);
+            }
+            List<CommitStatsView> items = new ArrayList<>();
+            for (RevCommit commit : commits) {
+                DiffStat diffStat = diffStat(repository, commit);
+                items.add(new CommitStatsView(
+                    commit.getId().name(),
+                    commit.getShortMessage(),
+                    commit.getAuthorIdent().getName(),
+                    formatter.format(commit.getAuthorIdent().getWhenAsInstant().atZone(ZoneId.systemDefault())),
+                    branch == null || branch.isBlank() ? "main" : branch,
+                    diffStat.linesAdded(),
+                    diffStat.linesDeleted(),
+                    LocalDateTime.ofInstant(commit.getAuthorIdent().getWhenAsInstant(), ZoneId.systemDefault())
+                ));
+            }
+            return items;
+        } catch (Exception ex) {
+            throw new ApiException("读取提交统计失败: " + ex.getMessage());
+        }
+    }
+
     public List<FileNode> listFiles(Long projectId) {
         GitRepositoryEntity repo = findRepository(projectId);
         if (repo == null) return List.of();
@@ -289,6 +341,35 @@ public class GitService {
         return false;
     }
 
+    private DiffStat diffStat(org.eclipse.jgit.lib.Repository repository, RevCommit commit) throws IOException {
+        try (DiffFormatter formatter = new DiffFormatter(OutputStream.nullOutputStream());
+             ObjectReaderHolder reader = new ObjectReaderHolder(repository.newObjectReader());
+             RevWalk walk = new RevWalk(repository)) {
+            formatter.setRepository(repository);
+            formatter.setDetectRenames(true);
+            var newTreeIter = new CanonicalTreeParser();
+            newTreeIter.reset(reader.reader(), commit.getTree());
+            List<DiffEntry> diffs;
+            if (commit.getParentCount() > 0) {
+                RevCommit parent = walk.parseCommit(commit.getParent(0).getId());
+                var oldTreeIter = new CanonicalTreeParser();
+                oldTreeIter.reset(reader.reader(), parent.getTree());
+                diffs = formatter.scan(oldTreeIter, newTreeIter);
+            } else {
+                diffs = formatter.scan(new org.eclipse.jgit.treewalk.EmptyTreeIterator(), newTreeIter);
+            }
+            int added = 0;
+            int deleted = 0;
+            for (DiffEntry diff : diffs) {
+                for (Edit edit : formatter.toFileHeader(diff).toEditList()) {
+                    added += edit.getEndB() - edit.getBeginB();
+                    deleted += edit.getEndA() - edit.getBeginA();
+                }
+            }
+            return new DiffStat(added, deleted);
+        }
+    }
+
     @Transactional
     public MergeRequestEntity createMergeRequest(ProjectEntity project, String title, String source, String target) {
         MergeRequestEntity mr = new MergeRequestEntity();
@@ -340,9 +421,28 @@ public class GitService {
 
     public record CommitView(String hash, String message, String authorName, String createdAt, String branch) {}
 
+    public record CommitStatsView(
+        String hash,
+        String message,
+        String authorName,
+        String createdAt,
+        String branch,
+        int linesAdded,
+        int linesDeleted,
+        LocalDateTime occurredAt) {}
+
     public record FileNode(String path, String type) {}
 
     public record TreeEntry(String path, String name, String type, long sizeBytes) {}
 
     public record BlobView(String path, boolean binary, String encoding, String content, long sizeBytes) {}
+
+    private record DiffStat(int linesAdded, int linesDeleted) {}
+
+    private record ObjectReaderHolder(org.eclipse.jgit.lib.ObjectReader reader) implements AutoCloseable {
+        @Override
+        public void close() {
+            reader.close();
+        }
+    }
 }

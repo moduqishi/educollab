@@ -7,6 +7,7 @@ import com.educollab.dto.WorkspaceDtos.FileAssetRecord;
 import com.educollab.model.AssignmentSubmissionEntity;
 import com.educollab.model.FileAssetEntity;
 import com.educollab.model.FileOwnerType;
+import com.educollab.model.ProjectEntity;
 import com.educollab.model.UserRole;
 import com.educollab.repo.AssignmentSubmissionRepository;
 import com.educollab.repo.ChatRoomRepository;
@@ -39,6 +40,7 @@ public class FileStorageService {
   private final ChatRoomRepository chatRoomRepository;
   private final ClassMemberRepository classMemberRepository;
   private final ProjectAccessService projectAccessService;
+  private final ProjectActivityService projectActivityService;
   private final Path root;
   private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -51,6 +53,7 @@ public class FileStorageService {
       ChatRoomRepository chatRoomRepository,
       ClassMemberRepository classMemberRepository,
       ProjectAccessService projectAccessService,
+      ProjectActivityService projectActivityService,
       @Value("${app.file-storage.root:./data/uploads}") String rootDir) {
     this.fileAssetRepository = fileAssetRepository;
     this.taskRepository = taskRepository;
@@ -60,12 +63,13 @@ public class FileStorageService {
     this.chatRoomRepository = chatRoomRepository;
     this.classMemberRepository = classMemberRepository;
     this.projectAccessService = projectAccessService;
+    this.projectActivityService = projectActivityService;
     this.root = Path.of(rootDir);
   }
 
   @Transactional
   public FileAssetRecord store(MultipartFile file, FileOwnerType ownerType, Long ownerId) {
-    ensureVisible(ownerType, ownerId);
+    ensureWritable(ownerType, ownerId);
     try {
       Files.createDirectories(root);
       String generatedName = UUID.randomUUID() + "-" + file.getOriginalFilename();
@@ -79,6 +83,7 @@ public class FileStorageService {
       entity.setMimeType(file.getContentType());
       entity.setSizeBytes(file.getSize());
       fileAssetRepository.save(entity);
+      recordUploadActivity(entity);
       return toRecord(entity);
     } catch (IOException ex) {
       throw new ApiException("文件上传失败: " + ex.getMessage());
@@ -88,7 +93,7 @@ public class FileStorageService {
   @Transactional
   public FileAssetRecord storeBytes(
       byte[] bytes, String fileName, String mimeType, FileOwnerType ownerType, Long ownerId) {
-    ensureVisible(ownerType, ownerId);
+    ensureWritable(ownerType, ownerId);
     if (bytes == null) {
       throw new ApiException("文件内容不能为空");
     }
@@ -116,7 +121,7 @@ public class FileStorageService {
 
   @Transactional
   public void deleteAllForOwner(FileOwnerType ownerType, Long ownerId) {
-    ensureVisible(ownerType, ownerId);
+    ensureWritable(ownerType, ownerId);
     List<FileAssetEntity> list = fileAssetRepository.findByOwnerTypeAndOwnerId(ownerType, ownerId);
     for (FileAssetEntity entity : list) {
       try {
@@ -212,6 +217,21 @@ public class FileStorageService {
         formatter.format(entity.getCreatedAt()));
   }
 
+
+  private void ensureWritable(FileOwnerType ownerType, Long ownerId) {
+    JwtPrincipal principal = SecurityUtils.principal();
+    if (ownerType == FileOwnerType.ASSIGNMENT_SUBMISSION) {
+      ensureAssignmentSubmissionVisible(ownerId, principal);
+      return;
+    }
+    if (ownerType == FileOwnerType.CHAT_MESSAGE) {
+      chatRoomRepository.findById(ownerId).orElseThrow(() -> new ApiException("聊天室不存在"));
+      return;
+    }
+    Long projectId = resolveProjectId(ownerType, ownerId);
+    projectAccessService.requireEditable(projectId, principal);
+  }
+
   private void ensureVisible(FileOwnerType ownerType, Long ownerId) {
     JwtPrincipal principal = SecurityUtils.principal();
     if (ownerType == FileOwnerType.ASSIGNMENT_SUBMISSION) {
@@ -284,5 +304,38 @@ public class FileStorageService {
       return;
     }
     throw new ApiException("无权访问该作业附件");
+  }
+
+  private void recordUploadActivity(FileAssetEntity entity) {
+    JwtPrincipal principal = SecurityUtils.principal();
+    if (principal == null) {
+      return;
+    }
+    ProjectEntity project = resolveActivityProject(entity.getOwnerType(), entity.getOwnerId());
+    if (project == null) {
+      return;
+    }
+    projectActivityService.recordFileUploaded(
+        project,
+        principal.userId(),
+        entity.getId(),
+        entity.getFileName(),
+        entity.getOwnerType().name(),
+        entity.getOwnerId(),
+        entity.getCreatedAt());
+  }
+
+  private ProjectEntity resolveActivityProject(FileOwnerType ownerType, Long ownerId) {
+    if (ownerType == null || ownerId == null) {
+      return null;
+    }
+    return switch (ownerType) {
+      case PROJECT -> projectAccessService.requireVisible(ownerId, SecurityUtils.principal());
+      case TASK -> taskRepository.findById(ownerId).map(task -> task.getProject()).orElse(null);
+      case DOCUMENT -> documentRepository.findById(ownerId).map(document -> document.getProject()).orElse(null);
+      case DISCUSSION_POST -> discussionPostRepository.findById(ownerId).map(post -> post.getProject()).orElse(null);
+      case ASSIGNMENT_SUBMISSION -> assignmentSubmissionRepository.findById(ownerId).map(AssignmentSubmissionEntity::getLinkedProject).orElse(null);
+      case CHAT_MESSAGE -> null;
+    };
   }
 }

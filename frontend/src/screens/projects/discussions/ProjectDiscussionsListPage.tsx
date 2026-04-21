@@ -110,10 +110,10 @@ export function ProjectDiscussionsListPage() {
             <CardTitle className="text-sm">快捷操作</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="outline" className="w-full justify-start rounded-xl" onClick={() => nav(`/app/projects/${detail.project.id}/tasks`)}>
+            <Button variant="outline" className="w-full justify-start rounded-xl" onClick={() => nav(`/app/projects/${detail.project.id}/tasks`)} disabled={!detail.currentUserCanEdit}>
               新建任务
             </Button>
-            <Button variant="outline" className="w-full justify-start rounded-xl" onClick={() => nav(`/app/projects/${detail.project.id}/tasks`)}>
+            <Button variant="outline" className="w-full justify-start rounded-xl" onClick={() => nav(`/app/projects/${detail.project.id}/tasks`)} disabled={!detail.currentUserCanEdit}>
               新建待办
             </Button>
           </CardContent>
@@ -127,17 +127,21 @@ export function ProjectDiscussionsListPage() {
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索项目讨论..." className="rounded-full pl-10" />
           </div>
 
-          <Dialog>
-            <DialogTrigger render={<Button className="gap-2 rounded-full" />}>
-              <Plus size={16} /> 新建帖子
-            </DialogTrigger>
-            <NewPostDialog
-              onCreate={async (v) => {
-                await createM.mutateAsync(v);
-              }}
-              pending={createM.isPending}
-            />
-          </Dialog>
+          {detail.currentUserCanEdit ? (
+            <Dialog>
+              <DialogTrigger render={<Button className="gap-2 rounded-full" />}>
+                <Plus size={16} /> 新建帖子
+              </DialogTrigger>
+              <NewPostDialog
+                onCreate={async (v) => {
+                  await createM.mutateAsync(v);
+                }}
+                pending={createM.isPending}
+              />
+            </Dialog>
+          ) : (
+            <Badge variant="secondary">只读查看</Badge>
+          )}
         </div>
 
         <div className="space-y-4">

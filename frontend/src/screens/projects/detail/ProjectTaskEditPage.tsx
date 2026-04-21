@@ -34,6 +34,15 @@ export function ProjectTaskEditPage() {
     },
   });
 
+  const deleteM = useMutation({
+    mutationFn: () => api.deleteProjectTask(id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['tasks'] });
+      await qc.invalidateQueries({ queryKey: ['taskFiles', id] });
+      await refresh();
+    },
+  });
+
   const uploadM = useMutation({
     mutationFn: (file: File) => api.uploadFile('TASK', id, file),
     onSuccess: async () => {
@@ -56,6 +65,17 @@ export function ProjectTaskEditPage() {
     },
   });
 
+
+  if (!detail.currentUserCanEdit) {
+    return (
+      <PageError
+        title="当前项目只读"
+        message="同课程其他小组的项目允许查看，但不能编辑任务。"
+        onRetry={() => navigate(`/app/projects/${detail.project.id}/tasks`)}
+      />
+    );
+  }
+
   if (!task) {
     return (
       <PageError
@@ -72,6 +92,7 @@ export function ProjectTaskEditPage() {
       description={`项目：${detail.project.name}`}
       fixedProjectId={detail.project.id}
       projects={[detail.project]}
+      milestones={detail.milestones}
       users={detail.members.map((member) => ({
         id: member.id,
         name: member.name,
@@ -81,6 +102,8 @@ export function ProjectTaskEditPage() {
       }))}
       initialValue={{
         projectId: detail.project.id,
+        milestoneId: task.milestoneId ?? null,
+        parentTaskId: task.parentTaskId ?? null,
         title: task.title,
         description: task.description,
         status: task.status,
@@ -88,16 +111,20 @@ export function ProjectTaskEditPage() {
         assigneeId: task.assigneeId ?? null,
         dueDate: task.dueDate || '',
       }}
+      editingTaskId={task.id}
       saving={saveM.isPending}
       attachments={attachmentsQ.data || []}
       loadingAttachments={attachmentsQ.isLoading}
       uploadingAttachment={uploadM.isPending}
       deletingAttachmentId={deleteAttachmentM.isPending ? deleteAttachmentM.variables : null}
       attachmentError={attachmentError}
+      deleting={deleteM.isPending}
       onBack={() => navigate(`/app/projects/${detail.project.id}/tasks`)}
       onSave={async (form) => {
         await saveM.mutateAsync({
           projectId: detail.project.id,
+          milestoneId: form.milestoneId || undefined,
+          parentTaskId: form.parentTaskId || undefined,
           title: form.title.trim(),
           description: form.description.trim(),
           status: form.status,
@@ -105,6 +132,10 @@ export function ProjectTaskEditPage() {
           assigneeId: form.assigneeId || undefined,
           dueDate: form.dueDate || undefined,
         });
+        navigate(`/app/projects/${detail.project.id}/tasks`);
+      }}
+      onDelete={async () => {
+        await deleteM.mutateAsync();
         navigate(`/app/projects/${detail.project.id}/tasks`);
       }}
       onUploadAttachment={async (file) => {

@@ -53,7 +53,7 @@ export function AppShell() {
     classes: '课程中心',
     teams: '团队工作台',
     projects: '项目',
-    tasks: '任务',
+    tasks: '待办',
     documents: '文档',
     messages: '消息',
     ai: 'AI 助手',
@@ -69,7 +69,7 @@ export function AppShell() {
     { to: '/app/classes', label: '课程', icon: Users },
     { to: '/app/teams', label: '团队', icon: Users },
     { to: '/app/projects', label: '项目', icon: FolderKanban },
-    { to: '/app/tasks', label: '任务', icon: CheckSquare },
+    { to: '/app/tasks', label: '待办', icon: CheckSquare },
     { to: '/app/documents', label: '文档', icon: FileText },
     { to: '/app/messages', label: '消息', icon: MessageSquare },
     { to: '/app/ai', label: 'AI 助手', icon: Bot },
@@ -82,7 +82,7 @@ export function AppShell() {
     { to: '/app/projects', label: '项目', icon: FolderKanban },
     { to: '/app/teacher/assignments', label: '作业', icon: ClipboardCheck },
     { to: '/app/teacher/feedback', label: '反馈', icon: MessagesSquare },
-    { to: '/app/teacher/contributions', label: '贡献分析', icon: BarChart3 },
+    { to: '/app/teacher/contributions', label: '总结总览', icon: BarChart3 },
   ];
 
   const adminNav: NavItem[] = [

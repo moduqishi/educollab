@@ -55,7 +55,7 @@ export function ProjectDocumentsPage() {
       <PageHero
         title="文档"
         subtitle="沉淀方案、纪要与联调记录。实时协作 + 自动保存 + 版本回滚，让团队更放心。"
-        actions={
+        actions={detail.currentUserCanEdit ? (
           <Dialog
             open={open}
             onOpenChange={(v) => {
@@ -142,7 +142,9 @@ export function ProjectDocumentsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        }
+        ) : (
+          <Badge variant="secondary">只读查看</Badge>
+        )}
         right={
           <div className="w-[360px] max-w-full relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -158,11 +160,11 @@ export function ProjectDocumentsPage() {
               title="还没有文档"
               message="建议先创建一篇“项目总览文档”，把目标、里程碑、验收标准写清楚。"
               icon={FileText}
-              action={
+              action={detail.currentUserCanEdit ? (
                 <Button className="gap-2" onClick={() => setOpen(true)}>
                   <Plus size={16} /> 新建文档
                 </Button>
-              }
+              ) : undefined}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

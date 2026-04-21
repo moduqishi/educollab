@@ -8,6 +8,7 @@ function normalizeApiBase(raw: string) {
 
 function defaultApiBase() {
   if (typeof window === 'undefined') return 'http://localhost:8080';
+  if ((import.meta as any).env?.DEV) return '';
   const proto = window.location.protocol || 'http:';
   // Use the same host+port as the current page by default.
   // Dev/docker-compose can override via VITE_API_BASE_URL.
@@ -17,6 +18,7 @@ function defaultApiBase() {
 
 function defaultCollabBase() {
   if (typeof window === 'undefined') return 'ws://localhost:1234';
+  if ((import.meta as any).env?.DEV) return '/collab';
   const isHttps = window.location.protocol === 'https:';
   const proto = isHttps ? 'wss:' : 'ws:';
   // Default to a same-origin websocket endpoint so a single reverse-proxy

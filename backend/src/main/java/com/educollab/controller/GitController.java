@@ -19,9 +19,9 @@ public class GitController {
         this.workspaceService = workspaceService;
         this.gitAccessTokenService = gitAccessTokenService;
     }
-    @PostMapping("/repositories/init/{projectId}") public void init(@PathVariable Long projectId) { gitService.ensureRepository(workspaceService.requireVisible(projectId, SecurityUtils.principal())); }
+    @PostMapping("/repositories/init/{projectId}") public void init(@PathVariable Long projectId) { gitService.ensureRepository(workspaceService.requireProjectEditable(projectId, SecurityUtils.principal())); }
     @GetMapping("/projects/{projectId}/branches") public java.util.List<String> branches(@PathVariable Long projectId) { workspaceService.requireVisible(projectId, SecurityUtils.principal()); return gitService.listBranches(projectId); }
-    @PostMapping("/branches") public void createBranch(@RequestBody BranchCreateRequest request) { workspaceService.requireVisible(request.projectId(), SecurityUtils.principal()); gitService.createBranch(request.projectId(), request.name()); }
+    @PostMapping("/branches") public void createBranch(@RequestBody BranchCreateRequest request) { workspaceService.requireProjectEditable(request.projectId(), SecurityUtils.principal()); gitService.createBranch(request.projectId(), request.name()); }
     @GetMapping("/projects/{projectId}/commits")
     public java.util.List<CommitRecord> commits(@PathVariable Long projectId) {
         workspaceService.requireVisible(projectId, SecurityUtils.principal());
@@ -33,9 +33,9 @@ public class GitController {
     @GetMapping("/projects/{projectId}/files") public java.util.List<GitService.FileNode> files(@PathVariable Long projectId) { workspaceService.requireVisible(projectId, SecurityUtils.principal()); return gitService.listFiles(projectId); }
     @GetMapping("/projects/{projectId}/tree") public java.util.List<GitService.TreeEntry> tree(@PathVariable Long projectId, @RequestParam(value = "path", required = false) String path) { workspaceService.requireVisible(projectId, SecurityUtils.principal()); return gitService.listTree(projectId, path); }
     @GetMapping("/projects/{projectId}/blob") public GitService.BlobView blob(@PathVariable Long projectId, @RequestParam("path") String path) { workspaceService.requireVisible(projectId, SecurityUtils.principal()); return gitService.readBlob(projectId, path); }
-    @PostMapping("/merge-requests") public MergeRequestRecord createMr(@RequestBody MergeRequestSaveRequest request) { var project = workspaceService.requireVisible(request.projectId(), SecurityUtils.principal()); var mr = gitService.createMergeRequest(project, request.title(), request.sourceBranch(), request.targetBranch()); return new MergeRequestRecord(mr.getId(), mr.getTitle(), mr.getSourceBranch(), mr.getTargetBranch(), mr.getStatus().name()); }
+    @PostMapping("/merge-requests") public MergeRequestRecord createMr(@RequestBody MergeRequestSaveRequest request) { var project = workspaceService.requireProjectEditable(request.projectId(), SecurityUtils.principal()); var mr = gitService.createMergeRequest(project, request.title(), request.sourceBranch(), request.targetBranch()); return new MergeRequestRecord(mr.getId(), mr.getTitle(), mr.getSourceBranch(), mr.getTargetBranch(), mr.getStatus().name()); }
     @PostMapping("/merge-requests/{id}/merge") public MergeRequestRecord mergeMr(@PathVariable Long id) { var mr = gitService.merge(id); return new MergeRequestRecord(mr.getId(), mr.getTitle(), mr.getSourceBranch(), mr.getTargetBranch(), mr.getStatus().name()); }
-    @PostMapping("/releases") public ReleaseRecord createRelease(@RequestBody ReleaseSaveRequest request) { var project = workspaceService.requireVisible(request.projectId(), SecurityUtils.principal()); var release = gitService.createRelease(project, request.version(), request.title(), request.description()); return new ReleaseRecord(release.getId(), release.getVersion(), release.getTitle(), release.getDescription(), release.getCreatedAt().toString()); }
+    @PostMapping("/releases") public ReleaseRecord createRelease(@RequestBody ReleaseSaveRequest request) { var project = workspaceService.requireProjectEditable(request.projectId(), SecurityUtils.principal()); var release = gitService.createRelease(project, request.version(), request.title(), request.description()); return new ReleaseRecord(release.getId(), release.getVersion(), release.getTitle(), release.getDescription(), release.getCreatedAt().toString()); }
 
     @GetMapping("/projects/{projectId}/clone-info")
     public GitCloneInfo cloneInfo(@PathVariable Long projectId) {

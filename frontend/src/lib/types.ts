@@ -39,11 +39,17 @@ export interface TeamRecord {
   name: string;
   courseId: number | null;
   courseName: string;
+  groupOrder?: number | null;
   memberCount: number;
   leaderId: number | null;
   leaderName: string;
   inviteCode: string | null;
   groupTaskId: number | null;
+  source: 'STANDALONE' | 'COURSE';
+  status?: string | null;
+  groupTaskTitle?: string | null;
+  projectId?: number | null;
+  projectName?: string | null;
 }
 
 export interface CourseRecord {
@@ -92,6 +98,70 @@ export interface ClassDetail {
   groupTasks: GroupTaskRecord[];
 }
 
+export interface TeamMemberRecord {
+  userId: number;
+  name: string;
+  email: string;
+  avatar?: string;
+  leader: boolean;
+}
+
+export interface TeamTaskRecord {
+  id: number;
+  teamId: number;
+  title: string;
+  description: string;
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE' | string;
+  assigneeId?: number | null;
+  assigneeName?: string | null;
+  dueDate?: string | null;
+  createdAt?: string | null;
+}
+
+export interface TeamLinkedProjectRecord {
+  projectId: number;
+  projectName: string;
+  description?: string | null;
+  projectType?: 'CODE' | 'NON_CODE' | string | null;
+  projectStatus?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED' | string | null;
+  projectProgress?: number | null;
+  taskCount?: number | null;
+  completedTaskCount?: number | null;
+}
+
+export interface TeamDetailRecord {
+  id: number;
+  name: string;
+  source: 'STANDALONE' | 'COURSE';
+  courseId?: number | null;
+  courseName?: string | null;
+  groupOrder?: number | null;
+  leaderId?: number | null;
+  leaderName?: string | null;
+  status?: string | null;
+  inviteCode?: string | null;
+  currentUserLeader: boolean;
+  currentUserMember: boolean;
+  teacherView: boolean;
+  members: TeamMemberRecord[];
+  project?: TeamLinkedProjectRecord | null;
+  tasks: TeamTaskRecord[];
+}
+
+export interface ClassProjectRecord {
+  teamId: number;
+  teamName: string;
+  groupOrder?: number | null;
+  teamStatus?: string | null;
+  projectId?: number | null;
+  projectName?: string | null;
+  projectType?: 'CODE' | 'NON_CODE' | string | null;
+  projectStatus?: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED' | string | null;
+  progress: number;
+  totalTaskCount: number;
+  completedTaskCount: number;
+}
+
 export interface ProjectRecord {
   id: number;
   name: string;
@@ -99,16 +169,41 @@ export interface ProjectRecord {
   type: 'CODE' | 'NON_CODE';
   status: 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
   progress: number;
+  courseId?: number | null;
   courseName: string;
+  teamId?: number | null;
   teamName: string;
   dueDate?: string | null;
+  createdAt: string;
   memberAvatars: string[];
+}
+
+export interface ProjectMilestoneRecord {
+  id: number;
+  projectId: number;
+  title: string;
+  description?: string | null;
+  sortOrder: number;
+  weight: number;
+  status: 'LOCKED' | 'ACTIVE' | 'DONE' | string;
+  activatedAt?: string | null;
+  completedAt?: string | null;
+  progressPercent: number;
+  taskCount: number;
+  completedTaskCount: number;
+  canMarkDone: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface TaskRecord {
   id: number;
   projectId: number;
   projectName: string;
+  milestoneId?: number | null;
+  milestoneTitle?: string | null;
+  parentTaskId?: number | null;
+  sortOrder?: number | null;
   title: string;
   description: string;
   status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'DONE';
@@ -116,6 +211,25 @@ export interface TaskRecord {
   assigneeName: string;
   dueDate?: string | null;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  createdAt: string;
+  completedAt?: string | null;
+  hasChildren: boolean;
+  childCount: number;
+  derivedProgressPercent: number;
+  canMarkDone: boolean;
+  canCreateChild: boolean;
+  blockedByMilestone: boolean;
+  depth: number;
+}
+
+export interface TaskTreeRecord {
+  task: TaskRecord;
+  children: TaskTreeRecord[];
+}
+
+export interface ProjectMilestoneTaskGroupRecord {
+  milestone: ProjectMilestoneRecord;
+  rootTasks: TaskTreeRecord[];
 }
 
 export interface DiscussionReply {
@@ -304,10 +418,13 @@ export interface ProjectMemberCandidate {
 export interface ProjectDetail {
   project: ProjectRecord;
   stats: ProjectStats;
+  milestones: ProjectMilestoneRecord[];
   tasks: TaskRecord[];
+  milestoneTaskGroups: ProjectMilestoneTaskGroupRecord[];
   discussions: DiscussionPost[];
   documents: DocumentRecord[];
   members: ProjectMember[];
+  currentUserCanEdit: boolean;
   currentUserCanManageMembers: boolean;
   branches: string[];
   commits: CommitRecord[];
@@ -332,6 +449,205 @@ export interface TeacherOverview {
   contributionRows: ContributionRow[];
 }
 
+export interface ProjectActivityEventRecord {
+  id: number;
+  projectId: number;
+  projectName: string;
+  courseId?: number | null;
+  courseName?: string | null;
+  teamId?: number | null;
+  teamName?: string | null;
+  userId?: number | null;
+  userName?: string | null;
+  eventType: string;
+  targetType?: string | null;
+  targetId?: number | null;
+  targetTitle?: string | null;
+  eventCount?: number | null;
+  linesAdded?: number | null;
+  linesDeleted?: number | null;
+  contributionScore: number;
+  detailJson?: string | null;
+  occurredAt: string;
+}
+
+export interface ContributionBreakdownRecord {
+  key: string;
+  label: string;
+  eventCount: number;
+  metricValue: number;
+  contributionScore: number;
+}
+
+export interface UserContributionRecord {
+  userId: number;
+  userName: string;
+  projectId: number;
+  projectName: string;
+  courseId?: number | null;
+  courseName?: string | null;
+  teamName?: string | null;
+  contributionScore: number;
+  eventCount: number;
+  lastActiveAt?: string | null;
+  breakdowns: ContributionBreakdownRecord[];
+}
+
+export interface ProjectContributionSummaryRecord {
+  projectId: number;
+  projectName: string;
+  courseId?: number | null;
+  courseName?: string | null;
+  teamName?: string | null;
+  contributionScore: number;
+  activeUserCount: number;
+  eventCount: number;
+}
+
+export interface ProjectWeeklyReportRecord {
+  projectId: number;
+  projectName: string;
+  weekStart: string;
+  weekEnd: string;
+  weekLabel: string;
+  totalContributionScore: number;
+  activeUserCount: number;
+  eventCount: number;
+  breakdowns: ContributionBreakdownRecord[];
+  memberRankings: UserContributionRecord[];
+  timeline: ProjectActivityEventRecord[];
+  rawEvents: ProjectActivityEventRecord[];
+}
+
+export interface CourseFilterRecord {
+  id: number;
+  name: string;
+}
+
+export interface TeacherContributionReportRecord {
+  selectedCourseId?: number | null;
+  weekStart: string;
+  weekEnd: string;
+  weekLabel: string;
+  courses: CourseFilterRecord[];
+  overallBreakdowns: ContributionBreakdownRecord[];
+  projectRows: ProjectContributionSummaryRecord[];
+  userRows: UserContributionRecord[];
+}
+
+export interface SummaryKpiRecord {
+  key: string;
+  label: string;
+  value: string;
+  hint: string;
+}
+
+export interface SummaryLeaderboardEntry {
+  subjectId: number;
+  title: string;
+  subtitle?: string | null;
+  contributionScore: number;
+  rawCount: number;
+  effectiveCount: number;
+  highlighted: boolean;
+}
+
+export interface SummaryTrendBucket {
+  bucketKey: string;
+  label: string;
+  startDate: string;
+  contributionScore: number;
+  rawCount: number;
+  effectiveCount: number;
+}
+
+export interface SummaryHeatmapCell {
+  date: string;
+  contributionScore: number;
+  rawCount: number;
+  effectiveCount: number;
+  level: number;
+}
+
+export interface MemberSummaryRecord {
+  userId: number;
+  userName: string;
+  teamName?: string | null;
+  contributionScore: number;
+  rawCount: number;
+  effectiveCount: number;
+  lastActiveAt?: string | null;
+  breakdowns: ContributionBreakdownRecord[];
+}
+
+export interface SummaryWeeklyDigestRecord {
+  weekStart: string;
+  weekEnd: string;
+  contributionScore: number;
+  activeUserCount: number;
+  rawCount: number;
+  effectiveCount: number;
+  breakdowns: ContributionBreakdownRecord[];
+}
+
+export interface ProjectSummaryRecord {
+  projectId: number;
+  projectName: string;
+  rangeType: 'ALL' | 'WEEK' | 'MONTH' | 'CUSTOM' | string;
+  rangeStart: string;
+  rangeEnd: string;
+  rangeLabel: string;
+  selectedMemberId?: number | null;
+  selectedMemberName?: string | null;
+  contributionScore: number;
+  rawCount: number;
+  effectiveCount: number;
+  activeUserCount: number;
+  kpis: SummaryKpiRecord[];
+  breakdowns: ContributionBreakdownRecord[];
+  trendBuckets: SummaryTrendBucket[];
+  heatmap: SummaryHeatmapCell[];
+  leaderboard: SummaryLeaderboardEntry[];
+  members: MemberSummaryRecord[];
+  weeklyDigest: SummaryWeeklyDigestRecord;
+  timeline: ProjectActivityEventRecord[];
+  rawEvents: ProjectActivityEventRecord[];
+}
+
+export interface TeacherSummaryRecord {
+  selectedCourseId?: number | null;
+  rangeType: 'ALL' | 'WEEK' | 'MONTH' | 'CUSTOM' | string;
+  rangeStart: string;
+  rangeEnd: string;
+  rangeLabel: string;
+  courseCount: number;
+  contributionScore: number;
+  rawCount: number;
+  effectiveCount: number;
+  activeUserCount: number;
+  courses: CourseFilterRecord[];
+  kpis: SummaryKpiRecord[];
+  breakdowns: ContributionBreakdownRecord[];
+  trendBuckets: SummaryTrendBucket[];
+  heatmap: SummaryHeatmapCell[];
+  projectLeaderboard: SummaryLeaderboardEntry[];
+  userLeaderboard: SummaryLeaderboardEntry[];
+  weeklyDigest: SummaryWeeklyDigestRecord;
+  timeline: ProjectActivityEventRecord[];
+}
+
+export interface TeacherAssignmentCourseRecord {
+  classId: number;
+  className: string;
+  assignmentCount: number;
+  openAssignmentCount: number;
+  closedAssignmentCount: number;
+  totalSubmissions: number;
+  pendingSubmissions: number;
+  gradedSubmissions: number;
+  latestDueDate?: string | null;
+}
+
 export interface TeacherFeedbackRecord {
   id: number;
   projectId: number;
@@ -342,7 +658,7 @@ export interface TeacherFeedbackRecord {
   createdAt: string;
 }
 
-export type AssignmentSubmissionStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'RETURNED' | 'GRADED';
+export type AssignmentSubmissionStatus = 'NOT_SUBMITTED' | 'DRAFT' | 'SUBMITTED' | 'RETURNED' | 'GRADED';
 
 export interface AssignmentRecord {
   id: number;
@@ -354,6 +670,8 @@ export interface AssignmentRecord {
   summary: string;
   submissionUrl: string;
   dueDate?: string | null;
+  status: 'OPEN' | 'CLOSED';
+  allowSubmission: boolean;
   createdAt: string;
   currentUserSubmissionStatus?: AssignmentSubmissionStatus | null;
   currentUserSubmittedAt?: string | null;
@@ -374,6 +692,12 @@ export interface AssignmentSubmissionRecord {
   content: string;
   submissionUrl: string;
   status: AssignmentSubmissionStatus;
+  linkedProjectId?: number | null;
+  linkedProjectName?: string | null;
+  linkedDocumentId?: number | null;
+  linkedDocumentTitle?: string | null;
+  linkedRepositoryName?: string | null;
+  linkedRepositoryUrl?: string | null;
   score?: number | null;
   teacherFeedback?: string | null;
   submittedAt?: string | null;

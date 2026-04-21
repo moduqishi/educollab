@@ -7,7 +7,10 @@ import com.educollab.model.*;
 import com.educollab.repo.*;
 import com.educollab.service.classroom.AssignmentSubmissionRecordMapper;
 import com.educollab.service.classroom.ClassroomRecordMapper;
+import com.educollab.service.team.TeamRecordMapper;
+import com.educollab.service.workspace.ProjectProgressService;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -25,15 +28,27 @@ public class ClassroomService {
   private final TeamRepository teamRepository;
   private final TeamMemberRepository teamMemberRepository;
   private final GroupTaskTeamTaskRepository groupTaskTeamTaskRepository;
+  private final TaskRepository taskRepository;
   private final UserRepository userRepository;
   private final AuthService authService;
   private final NotificationService notificationService;
   private final ProjectRepository projectRepository;
+  private final ProjectMilestoneRepository projectMilestoneRepository;
   private final ProjectMemberRepository projectMemberRepository;
   private final GitService gitService;
+  private final ProjectProgressService projectProgressService;
+  private final ProjectActivityService projectActivityService;
   private final ClassroomRecordMapper recordMapper;
   private final AssignmentSubmissionRecordMapper assignmentSubmissionRecordMapper;
+  private final TeamRecordMapper teamRecordMapper;
   private final Random random = new Random();
+  private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+  private static final List<ProjectMilestoneSeed> DEFAULT_MILESTONES = List.of(
+      new ProjectMilestoneSeed("构思阶段", "明确目标、问题边界和核心价值。", 1),
+      new ProjectMilestoneSeed("蓝图搭建", "整理整体结构、页面草图与技术蓝图。", 1),
+      new ProjectMilestoneSeed("项目规划", "拆分任务、确认优先级、资源和验收方式。", 1),
+      new ProjectMilestoneSeed("开发实现", "进入主要实现、联调与阶段迭代。", 5),
+      new ProjectMilestoneSeed("验收交付", "完成测试、演示、文档和最终交付。", 2));
 
   public ClassroomService(
       CourseRepository courseRepository,
@@ -44,14 +59,19 @@ public class ClassroomService {
       TeamRepository teamRepository,
       TeamMemberRepository teamMemberRepository,
       GroupTaskTeamTaskRepository groupTaskTeamTaskRepository,
+      TaskRepository taskRepository,
       UserRepository userRepository,
       AuthService authService,
       NotificationService notificationService,
       ProjectRepository projectRepository,
+      ProjectMilestoneRepository projectMilestoneRepository,
       ProjectMemberRepository projectMemberRepository,
       GitService gitService,
+      ProjectProgressService projectProgressService,
+      ProjectActivityService projectActivityService,
       ClassroomRecordMapper recordMapper,
-      AssignmentSubmissionRecordMapper assignmentSubmissionRecordMapper) {
+      AssignmentSubmissionRecordMapper assignmentSubmissionRecordMapper,
+      TeamRecordMapper teamRecordMapper) {
     this.courseRepository = courseRepository;
     this.classMemberRepository = classMemberRepository;
     this.classInvitationRepository = classInvitationRepository;
@@ -60,14 +80,19 @@ public class ClassroomService {
     this.teamRepository = teamRepository;
     this.teamMemberRepository = teamMemberRepository;
     this.groupTaskTeamTaskRepository = groupTaskTeamTaskRepository;
+    this.taskRepository = taskRepository;
     this.userRepository = userRepository;
     this.authService = authService;
     this.notificationService = notificationService;
     this.projectRepository = projectRepository;
+    this.projectMilestoneRepository = projectMilestoneRepository;
     this.projectMemberRepository = projectMemberRepository;
     this.gitService = gitService;
+    this.projectProgressService = projectProgressService;
+    this.projectActivityService = projectActivityService;
     this.recordMapper = recordMapper;
     this.assignmentSubmissionRecordMapper = assignmentSubmissionRecordMapper;
+    this.teamRecordMapper = teamRecordMapper;
   }
 
   public List<ClassRecord> classes(JwtPrincipal principal) {
@@ -198,6 +223,46 @@ public class ClassroomService {
         .toList();
   }
 
+  public List<TeamRecord> teams(Long classId, JwtPrincipal principal) {
+    requireClassVisible(classId, principal);
+    return teamRepository.findByCourseIdOrderByCreatedAtAsc(classId).stream()
+        .filter(team -> teamRecordMapper.resolveSource(team) != TeamSource.STANDALONE)
+        .map(teamRecordMapper::toRecord)
+        .sorted(
+            java.util.Comparator
+                .comparing((TeamRecord item) -> item.groupOrder() == null ? Integer.MAX_VALUE : item.groupOrder())
+                .thenComparing(item -> java.util.Objects.requireNonNullElse(item.name(), "")))
+        .toList();
+  }
+
+  public List<ClassProjectRecord> classProjects(Long classId, JwtPrincipal principal) {
+    requireClassVisible(classId, principal);
+    return teamRepository.findByCourseIdOrderByCreatedAtAsc(classId).stream()
+        .filter(team -> teamRecordMapper.resolveSource(team) == TeamSource.COURSE)
+        .sorted(
+            java.util.Comparator
+                .comparing((TeamEntity item) -> item.getGroupOrder() == null ? Integer.MAX_VALUE : item.getGroupOrder())
+                .thenComparing(TeamEntity::getCreatedAt))
+        .map(team -> {
+          ProjectEntity project = projectRepository.findByTeamId(team.getId()).orElse(null);
+          List<TaskEntity> tasks = project != null ? taskRepository.findByProjectId(project.getId()) : List.of();
+          int completedTaskCount = (int) tasks.stream().filter(task -> task.getStatus() == TaskStatus.DONE).count();
+          return new ClassProjectRecord(
+              team.getId(),
+              team.getName(),
+              team.getGroupOrder(),
+              team.getStatus() != null ? team.getStatus().name() : null,
+              project != null ? project.getId() : null,
+              project != null ? project.getName() : null,
+              project != null && project.getType() != null ? project.getType().name() : null,
+              project != null && project.getStatus() != null ? project.getStatus().name() : null,
+              project != null ? project.getProgress() : 0,
+              tasks.size(),
+              completedTaskCount);
+        })
+        .toList();
+  }
+
   @Transactional
   public AssignmentRecord createAssignment(Long classId, AssignmentSaveRequest request, JwtPrincipal principal) {
     CourseEntity course = requireTeacherClass(classId, principal);
@@ -207,6 +272,7 @@ public class ClassroomService {
     entity.setSummary(request.summary());
     entity.setSubmissionUrl(request.submissionUrl());
     entity.setDueDate(parseDate(request.dueDate()));
+    entity.setStatus(AssignmentStatus.OPEN);
     assignmentRepository.save(entity);
     classMemberRepository.findByCourseId(classId).stream()
         .filter(member -> member.getRole() == ClassMemberRole.STUDENT)
@@ -216,6 +282,44 @@ public class ClassroomService {
             "班级 " + course.getName() + " 发布了作业：" + entity.getTitle(),
             NotificationType.TASK,
             assignmentTarget(classId, entity.getId())));
+    return assignmentSubmissionRecordMapper.toAssignmentRecord(entity, principal);
+  }
+
+  @Transactional
+  public AssignmentRecord updateAssignment(
+      Long classId, Long assignmentId, AssignmentSaveRequest request, JwtPrincipal principal) {
+    AssignmentEntity entity = requireAssignmentInClass(classId, assignmentId);
+    requireTeacherClass(classId, principal);
+    entity.setTitle(request.title());
+    entity.setSummary(request.summary());
+    entity.setSubmissionUrl(request.submissionUrl());
+    entity.setDueDate(parseDate(request.dueDate()));
+    assignmentRepository.save(entity);
+    return assignmentSubmissionRecordMapper.toAssignmentRecord(entity, principal);
+  }
+
+  @Transactional
+  public void deleteAssignment(Long classId, Long assignmentId, JwtPrincipal principal) {
+    AssignmentEntity entity = requireAssignmentInClass(classId, assignmentId);
+    requireTeacherClass(classId, principal);
+    assignmentRepository.delete(entity);
+  }
+
+  @Transactional
+  public AssignmentRecord closeAssignment(Long classId, Long assignmentId, JwtPrincipal principal) {
+    AssignmentEntity entity = requireAssignmentInClass(classId, assignmentId);
+    requireTeacherClass(classId, principal);
+    entity.setStatus(AssignmentStatus.CLOSED);
+    assignmentRepository.save(entity);
+    return assignmentSubmissionRecordMapper.toAssignmentRecord(entity, principal);
+  }
+
+  @Transactional
+  public AssignmentRecord reopenAssignment(Long classId, Long assignmentId, JwtPrincipal principal) {
+    AssignmentEntity entity = requireAssignmentInClass(classId, assignmentId);
+    requireTeacherClass(classId, principal);
+    entity.setStatus(AssignmentStatus.OPEN);
+    assignmentRepository.save(entity);
     return assignmentSubmissionRecordMapper.toAssignmentRecord(entity, principal);
   }
 
@@ -274,6 +378,7 @@ public class ClassroomService {
     team.setCourse(task.getCourse());
     team.setGroupTask(task);
     team.setLeader(authService.getUser(principal.userId()));
+    team.setSource(TeamSource.COURSE);
     team.setStatus(TeamStatus.FORMING);
     teamRepository.save(team);
 
@@ -414,7 +519,11 @@ public class ClassroomService {
     project.setType(ProjectType.valueOf(request.type()));
     project.setStatus(ProjectStatus.ACTIVE);
     project.setDueDate(parseDate(request.dueDate()));
-    projectRepository.save(project);
+    projectRepository.saveAndFlush(project);
+    List<ProjectMilestoneEntity> milestones = createDefaultMilestones(project);
+    projectProgressService.recomputeProject(project.getId());
+    projectActivityService.recordProjectCreated(project, principal.userId());
+    milestones.forEach(milestone -> projectActivityService.recordMilestoneCreated(milestone, principal.userId(), true));
     for (TeamMemberEntity member : teamMemberRepository.findByTeamId(teamId)) {
       ProjectMemberEntity projectMember = new ProjectMemberEntity();
       projectMember.setProject(project);
@@ -430,9 +539,12 @@ public class ClassroomService {
         project.getType().name(),
         project.getStatus().name(),
         project.getProgress(),
+        project.getCourse() != null ? project.getCourse().getId() : null,
         project.getCourse().getName(),
+        project.getTeam() != null ? project.getTeam().getId() : null,
         project.getTeam().getName(),
         project.getDueDate() != null ? project.getDueDate().toString() : null,
+        formatter.format(project.getCreatedAt()),
         projectMemberRepository.findByProjectId(project.getId()).stream().map(pm -> pm.getUser().getAvatar()).toList()
     );
   }
@@ -524,6 +636,27 @@ public class ClassroomService {
     return raw == null || raw.isBlank() ? null : LocalDate.parse(raw);
   }
 
+  private List<ProjectMilestoneEntity> createDefaultMilestones(ProjectEntity project) {
+    List<ProjectMilestoneEntity> existing =
+        projectMilestoneRepository.findByProjectIdOrderBySortOrderAscCreatedAtAsc(project.getId());
+    if (!existing.isEmpty()) {
+      return existing;
+    }
+    java.util.ArrayList<ProjectMilestoneEntity> created = new java.util.ArrayList<>();
+    int sortOrder = 1;
+    for (ProjectMilestoneSeed seed : DEFAULT_MILESTONES) {
+      ProjectMilestoneEntity milestone = new ProjectMilestoneEntity();
+      milestone.setProject(project);
+      milestone.setTitle(seed.title());
+      milestone.setDescription(seed.description());
+      milestone.setSortOrder(sortOrder++);
+      milestone.setWeight(seed.weight());
+      projectMilestoneRepository.save(milestone);
+      created.add(milestone);
+    }
+    return created;
+  }
+
   private NotificationTarget classMembersTarget(Long classId) {
     return NotificationTarget.of(
         NotificationSourceType.CLASS,
@@ -538,6 +671,15 @@ public class ClassroomService {
         assignmentId,
         "/app/classes/" + classId + "/assignments/" + assignmentId,
         "班级作业");
+  }
+
+  public AssignmentEntity requireAssignmentInClass(Long classId, Long assignmentId) {
+    AssignmentEntity assignment =
+        assignmentRepository.findById(assignmentId).orElseThrow(() -> new ApiException("作业不存在"));
+    if (assignment.getCourse() == null || !assignment.getCourse().getId().equals(classId)) {
+      throw new ApiException("作业不属于当前班级");
+    }
+    return assignment;
   }
 
   private NotificationTarget groupTaskTarget(Long classId, Long groupTaskId) {
@@ -555,4 +697,6 @@ public class ClassroomService {
         "/app/teams?teamId=" + teamId,
         "团队任务");
   }
+
+  private record ProjectMilestoneSeed(String title, String description, int weight) {}
 }

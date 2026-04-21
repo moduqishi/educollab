@@ -46,7 +46,7 @@ export function createAdminApi(request: RequestClient) {
 
     // Tasks
     adminTasks: () => request<AdminTaskSummary[]>('/api/admin/tasks'),
-    saveTask: (payload: {
+    adminSaveTask: (payload: {
       taskId: number;
       title?: string;
       description?: string;

@@ -392,7 +392,17 @@ export function GlobalTasksView({
                   onClick={async () => {
                     const next: TaskRecord['status'] = t.status === 'DONE' ? 'TODO' : t.status === 'TODO' ? 'IN_PROGRESS' : t.status === 'IN_PROGRESS' ? 'REVIEW' : 'DONE';
                     await api.saveTask(
-                      { projectId: t.projectId, title: t.title, description: t.description || '', status: next, priority: t.priority, dueDate: t.dueDate || undefined },
+                      {
+                        projectId: t.projectId,
+                        milestoneId: t.milestoneId || undefined,
+                        parentTaskId: t.parentTaskId || undefined,
+                        sortOrder: t.sortOrder || undefined,
+                        title: t.title,
+                        description: t.description || '',
+                        status: next,
+                        priority: t.priority,
+                        dueDate: t.dueDate || undefined,
+                      },
                       t.id,
                     );
                     await onRefresh();

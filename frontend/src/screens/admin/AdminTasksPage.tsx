@@ -41,7 +41,7 @@ export function AdminTasksPage() {
   const usersQ = useQuery({ queryKey: ['adminUsers'], queryFn: () => api.adminUsers() });
 
   const saveM = useMutation({
-    mutationFn: (payload: Parameters<typeof api.saveTask>[0]) => api.saveTask(payload),
+    mutationFn: (payload: Parameters<typeof api.adminSaveTask>[0]) => api.adminSaveTask(payload),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['adminTasks'] });
       setEditTarget(null);
@@ -166,7 +166,7 @@ export function AdminTasksPage() {
         users={usersQ.data || []}
         open={!!editTarget}
         onOpenChange={(o) => !o && setEditTarget(null)}
-        onSave={(payload) => editTarget && saveM.mutate({ taskId: editTarget.id, ...payload } as Parameters<typeof api.saveTask>[0])}
+        onSave={(payload) => editTarget && saveM.mutate({ taskId: editTarget.id, ...payload } as Parameters<typeof api.adminSaveTask>[0])}
         saving={saveM.isPending}
       />
 

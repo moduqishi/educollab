@@ -23,7 +23,7 @@ export const zhCN = {
     teacherDashboard: '教师工作台',
     teacherAssignments: '作业评审',
     teacherFeedback: '评分反馈',
-    teacherContributions: '贡献分析',
+    teacherContributions: '总结总览',
   },
   auth: {
     titleLogin: '登录',
@@ -58,4 +58,3 @@ export const zhCN = {
     docTitle: '文档工作台',
   },
 } as const;
-

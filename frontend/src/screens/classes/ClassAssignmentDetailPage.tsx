@@ -39,7 +39,7 @@ export function ClassAssignmentDetailPage() {
       Promise.all([
         qc.invalidateQueries({ queryKey: ['classes'] }),
         qc.invalidateQueries({ queryKey: ['classDetail', resolvedClassId] }),
-        qc.invalidateQueries({ queryKey: ['teacherAssignments'] }),
+        qc.invalidateQueries({ queryKey: ['teacherAssignmentCourses'] }),
         qc.invalidateQueries({ queryKey: ['assignmentSubmissions', resolvedClassId, resolvedAssignmentId] }),
         qc.invalidateQueries({ queryKey: ['assignmentSubmission', 'me', resolvedClassId, resolvedAssignmentId] }),
       ]),
@@ -75,7 +75,7 @@ export function ClassAssignmentDetailPage() {
       <PageError
         title="作业不存在"
         message="当前课程中没有找到这份作业。"
-        onRetry={() => navigate(`/app/classes?classId=${resolvedClassId}&tab=assignments`)}
+        onRetry={() => navigate(`/app/classes/${resolvedClassId}/assignments`)}
       />
     );
   }
@@ -89,7 +89,7 @@ export function ClassAssignmentDetailPage() {
           <Button
             variant="outline"
             className="gap-2"
-            onClick={() => navigate(`/app/classes?classId=${resolvedClassId}&tab=assignments`)}
+            onClick={() => navigate(`/app/classes/${resolvedClassId}/assignments`)}
           >
             <ArrowLeft size={14} />
             返回课程作业
@@ -98,37 +98,7 @@ export function ClassAssignmentDetailPage() {
       />
 
       <div className="px-8 pb-10">
-        <div className="mx-auto max-w-[1200px] space-y-6">
-          <Card className="border-muted/70">
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="text-lg">{assignment.title}</CardTitle>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {isTeacher ? (
-                      <>
-                        <Badge variant="outline">已提交 {assignment.totalSubmissions ?? 0}</Badge>
-                        <Badge variant="outline">已评分 {assignment.gradedSubmissions ?? 0}</Badge>
-                        <Badge variant="outline">待处理 {assignment.pendingSubmissions ?? 0}</Badge>
-                      </>
-                    ) : (
-                      <>
-                        <SubmissionStatusBadge status={assignment.currentUserSubmissionStatus} />
-                        <span>最近提交：{assignment.currentUserSubmittedAt || '暂无'}</span>
-                        <span>得分：{assignment.currentUserScore ?? '未评分'}</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="whitespace-pre-wrap text-sm text-muted-foreground">
-                {assignment.summary || '暂无说明'}
-              </div>
-            </CardContent>
-          </Card>
-
+        <div className={`mx-auto space-y-6 ${isTeacher ? 'max-w-[1500px]' : 'max-w-[1200px]'}`}>
           {isTeacher ? (
             <TeacherAssignmentReviewBoard
               assignment={assignment}
@@ -136,23 +106,46 @@ export function ClassAssignmentDetailPage() {
               onRefresh={refreshAll}
             />
           ) : (
-            <StudentAssignmentWorkspace
-              assignment={assignment}
-              classId={resolvedClassId}
-              onRefresh={refreshAll}
-            />
+            <>
+              <Card className="border-muted/70">
+                <CardHeader className="pb-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg">{assignment.title}</CardTitle>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline">{assignment.status === 'CLOSED' ? '已关闭提交' : '开放提交中'}</Badge>
+                        <SubmissionStatusBadge status={assignment.currentUserSubmissionStatus} />
+                        <span>最近提交：{assignment.currentUserSubmittedAt || '暂无'}</span>
+                        <span>得分：{assignment.currentUserScore ?? '未评分'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="whitespace-pre-wrap text-sm text-muted-foreground">
+                    {assignment.summary || '暂无说明'}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <StudentAssignmentWorkspace
+                assignment={assignment}
+                classId={resolvedClassId}
+                onRefresh={refreshAll}
+              />
+            </>
           )}
 
-          <Card className="border-dashed">
-            <CardContent className="py-4 text-xs text-muted-foreground">
-              <div className="flex items-start gap-2">
-                <ClipboardCheck size={14} className="mt-0.5" />
-                {isTeacher
-                  ? '教师可以在这个页面直接查看学生提交、填写反馈、评分或退回修改。'
-                  : '学生可以在这个页面直接填写作业说明、保存提交链接并上传附件完成作业。'}
-              </div>
-            </CardContent>
-          </Card>
+          {!isTeacher ? (
+            <Card className="border-dashed">
+              <CardContent className="py-4 text-xs text-muted-foreground">
+                <div className="flex items-start gap-2">
+                  <ClipboardCheck size={14} className="mt-0.5" />
+                  学生可以在这个页面直接填写作业说明、保存提交链接并上传附件完成作业。
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
     </div>

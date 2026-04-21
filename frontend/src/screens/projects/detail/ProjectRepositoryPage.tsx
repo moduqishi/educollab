@@ -72,7 +72,7 @@ export function ProjectRepositoryPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="rounded-full" disabled title="请在本地创建文件后再提交并推送">
+          <Button variant="outline" className="rounded-full" disabled title={detail.currentUserCanEdit ? '请在本地创建文件后再提交并推送' : '当前项目为只读，不能改仓库'}>
             新建文件
           </Button>
           <CloneRepoButton projectId={projectId} projectName={detail.project.name} />
@@ -80,7 +80,7 @@ export function ProjectRepositoryPage() {
             <RefreshCcw size={14} />
             刷新
           </Button>
-          {!hasRepo ? (
+          {!hasRepo && detail.currentUserCanEdit ? (
             <Button className="gap-2 rounded-full" onClick={() => initMutation.mutate()} disabled={initMutation.isPending}>
               <Plus size={16} />
               {initMutation.isPending ? '初始化中...' : '初始化仓库'}
@@ -115,12 +115,12 @@ export function ProjectRepositoryPage() {
               title="仓库尚未初始化"
               message="初始化后就可以浏览文件、查看提交、创建分支和合并请求。"
               icon={GitBranch}
-              action={
+              action={detail.currentUserCanEdit ? (
                 <Button className="gap-2 rounded-full" onClick={() => initMutation.mutate()} disabled={initMutation.isPending}>
                   <Plus size={16} />
                   {initMutation.isPending ? '初始化中...' : '初始化仓库'}
                 </Button>
-              }
+              ) : undefined}
             />
           </CardContent>
         </Card>
@@ -467,10 +467,11 @@ function RepoCommits() {
 }
 
 function RepoBranches({ projectId, branches, onDone }: { projectId: number; branches: string[]; onDone: () => Promise<void> }) {
+  const { detail } = useProjectDetail();
   return (
     <div className="p-6">
       <div className="mb-4 flex justify-end">
-        <CreateBranchButton projectId={projectId} onDone={onDone} />
+        {detail.currentUserCanEdit ? <CreateBranchButton projectId={projectId} onDone={onDone} /> : <Badge variant="secondary">只读查看</Badge>}
       </div>
       {!branches.length ? (
         <PageEmpty title="暂无分支" message="初始化仓库后会先出现默认分支。" icon={GitBranch} />
@@ -498,7 +499,7 @@ function RepoMergeRequests({ projectId, branches, onDone }: { projectId: number;
   return (
     <div className="p-6">
       <div className="mb-4 flex justify-end">
-        <CreateMrButton projectId={projectId} branches={branches} onDone={onDone} />
+        {detail.currentUserCanEdit ? <CreateMrButton projectId={projectId} branches={branches} onDone={onDone} /> : <Badge variant="secondary">只读查看</Badge>}
       </div>
       {!mergeRequests.length ? (
         <PageEmpty title="暂无合并请求" message="在分支开发完成后，可以创建合并请求发起评审与合并。" icon={GitMerge} />

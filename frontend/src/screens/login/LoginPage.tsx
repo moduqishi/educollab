@@ -61,14 +61,14 @@ export function LoginPage() {
               </div>
               <div>
                 <div className="text-2xl font-display font-bold tracking-tight">EduCollab</div>
-          <div className="text-sm text-muted-foreground mt-1">课程协作、组队任务、文档协同、项目工作区一体化</div>
+          <div className="text-sm text-muted-foreground mt-1">课程协作、团队协作、文档协同、项目工作区一体化</div>
               </div>
             </div>
 
             <div className="mt-8 grid grid-cols-2 gap-4">
               {[
               ['课程协作', '教师可管理多门课程，学生可加入多门课程。'],
-                ['组队任务', '教师发组队任务，学生自由创建、加入或退出队伍。'],
+                ['团队协作', '教师或学生可创建团队，并在课程上下文中持续协作。'],
                 ['协同文档', '支持在线协作文档与版本管理。'],
                 ['队伍项目', '组队完成后以队伍为单位创建项目和仓库。'],
               ].map(([title, desc]) => (

@@ -85,7 +85,7 @@ export function ClassesPage() {
                 {isTeacher ? '我的课程' : '已加入课程'}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                {isTeacher ? '管理课程内容，查看学生作业与组队情况' : '查看作业、组队任务与老师通知'}
+                {isTeacher ? '管理课程内容，查看学生作业与团队协作' : '查看作业、课程团队与老师通知'}
               </p>
             </div>
             <div className="flex items-center gap-3">

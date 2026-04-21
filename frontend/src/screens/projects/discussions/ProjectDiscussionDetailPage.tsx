@@ -140,12 +140,12 @@ export function ProjectDiscussionDetailPage() {
                 <MoreVertical size={16} />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {status === 'OPEN' ? (
+                {projectDetail.currentUserCanEdit ? (status === 'OPEN' ? (
                   <DropdownMenuItem onClick={() => updateM.mutate({ status: 'CLOSED' })}>关闭讨论</DropdownMenuItem>
                 ) : (
                   <DropdownMenuItem onClick={() => updateM.mutate({ status: 'OPEN' })}>重新开放</DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
+                )) : null}
+                {projectDetail.currentUserCanEdit ? <DropdownMenuSeparator /> : null}
                 <DropdownMenuItem onClick={() => navigator.clipboard.writeText(window.location.href)}>复制链接</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -169,7 +169,7 @@ export function ProjectDiscussionDetailPage() {
                     e.currentTarget.value = '';
                   }}
                 />
-                <Button variant="outline" size="sm" className="gap-2 rounded-full" disabled={uploadM.isPending}>
+                <Button variant="outline" size="sm" className="gap-2 rounded-full" disabled={uploadM.isPending || !projectDetail.currentUserCanEdit}>
                   <Plus size={14} /> 上传
                 </Button>
               </label>
@@ -197,9 +197,9 @@ export function ProjectDiscussionDetailPage() {
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-2">
-            <Button variant="outline" className="rounded-full">转为任务</Button>
-            <Button variant="outline" className="rounded-full">创建待办</Button>
-            <Button variant="outline" className="gap-2 rounded-full">
+            <Button variant="outline" className="rounded-full" disabled={!projectDetail.currentUserCanEdit}>转为任务</Button>
+            <Button variant="outline" className="rounded-full" disabled={!projectDetail.currentUserCanEdit}>创建待办</Button>
+            <Button variant="outline" className="gap-2 rounded-full" disabled={!projectDetail.currentUserCanEdit}>
               <Link2 size={14} /> 关联分支
             </Button>
           </div>
@@ -234,10 +234,10 @@ export function ProjectDiscussionDetailPage() {
             </div>
 
             <div className="mt-8 flex items-end gap-3">
-              <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder="写下你的回复..." className="min-h-[120px] rounded-2xl" />
+              <Textarea value={reply} onChange={(e) => setReply(e.target.value)} placeholder={projectDetail.currentUserCanEdit ? '写下你的回复...' : '当前项目为只读，你可以查看讨论但不能回复'} className="min-h-[120px] rounded-2xl" disabled={!projectDetail.currentUserCanEdit} />
               <Button
                 className="gap-2 rounded-full"
-                disabled={!canReply || replyM.isPending}
+                disabled={!projectDetail.currentUserCanEdit || !canReply || replyM.isPending}
                 onClick={async () => {
                   const next = reply.trim();
                   setReply('');
@@ -265,7 +265,7 @@ export function ProjectDiscussionDetailPage() {
                       <div className="truncate text-sm font-semibold">{t.title}</div>
                       <div className="mt-1 text-[11px] text-muted-foreground">{t.status}</div>
                     </div>
-                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => unlinkM.mutate(t.id)} disabled={unlinkM.isPending}>
+                    <Button variant="outline" size="sm" className="rounded-full" onClick={() => unlinkM.mutate(t.id)} disabled={unlinkM.isPending || !projectDetail.currentUserCanEdit}>
                       取消关联
                     </Button>
                   </div>
@@ -296,7 +296,7 @@ export function ProjectDiscussionDetailPage() {
                     if (!linkTaskId) return;
                     linkM.mutate(linkTaskId);
                   }}
-                  disabled={!linkTaskId || linkM.isPending}
+                  disabled={!projectDetail.currentUserCanEdit || !linkTaskId || linkM.isPending}
                 >
                   + 关联
                 </Button>

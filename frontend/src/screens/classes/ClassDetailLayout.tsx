@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate, useParams, Navigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, ClipboardList, MessageSquare, Users } from 'lucide-react';
+import { ArrowLeft, BookOpen, ClipboardList, FolderKanban, Users } from 'lucide-react';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
 import { setTitle } from '@/app/title';
@@ -63,8 +63,9 @@ export function ClassDetailLayout() {
   const tabs = [
     { to: `/app/classes/${id}/overview`, label: '概览', icon: BookOpen },
     { to: `/app/classes/${id}/members`, label: '成员', icon: Users },
+    { to: `/app/classes/${id}/teams`, label: '团队', icon: Users },
+    { to: `/app/classes/${id}/projects`, label: '项目', icon: FolderKanban },
     { to: `/app/classes/${id}/assignments`, label: '作业', icon: ClipboardList },
-    { to: `/app/classes/${id}/groupTasks`, label: '组队任务', icon: MessageSquare },
   ];
 
   return (

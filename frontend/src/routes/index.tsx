@@ -6,6 +6,7 @@ import { DashboardPage } from '@/screens/dashboard/DashboardPage';
 import { ProjectsPage } from '@/screens/projects/ProjectsPage';
 import { ProjectLayout } from '@/screens/projects/ProjectLayout';
 import { ProjectOverviewPage } from '@/screens/projects/detail/ProjectOverviewPage';
+import { ProjectReportsPage } from '@/screens/projects/detail/ProjectReportsPage';
 import { ProjectTasksPage } from '@/screens/projects/detail/ProjectTasksPage';
 import { ProjectTaskCreatePage } from '@/screens/projects/detail/ProjectTaskCreatePage';
 import { ProjectTaskEditPage } from '@/screens/projects/detail/ProjectTaskEditPage';
@@ -22,8 +23,9 @@ import { ClassDetailLayout } from '@/screens/classes/ClassDetailLayout';
 import { ClassOverviewTab } from '@/screens/classes/ClassOverviewTab';
 import { ClassMembersTabPage } from '@/screens/classes/ClassMembersTabPage';
 import { ClassAssignmentsTabPage } from '@/screens/classes/ClassAssignmentsTabPage';
-import { ClassGroupTasksTabPage } from '@/screens/classes/ClassGroupTasksTabPage';
 import { ClassAssignmentDetailPage } from '@/screens/classes/ClassAssignmentDetailPage';
+import { ClassTeamsTabPage } from '@/screens/classes/ClassTeamsTabPage';
+import { ClassProjectsTabPage } from '@/screens/classes/ClassProjectsTabPage';
 import { TasksPage } from '@/screens/tasks/TasksPage';
 import { TaskCreatePage } from '@/screens/tasks/TaskCreatePage';
 import { TaskEditPage } from '@/screens/tasks/TaskEditPage';
@@ -44,6 +46,7 @@ import { TeamsPage } from '@/screens/teams/TeamsPage';
 import { TeamDetailLayout } from '@/screens/teams/TeamDetailLayout';
 import { TeamOverviewTab } from '@/screens/teams/TeamOverviewTab';
 import { TeamMembersTab } from '@/screens/teams/TeamMembersTab';
+import { TeamProjectsTab } from '@/screens/teams/TeamProjectsTab';
 import { TeamTasksTab } from '@/screens/teams/TeamTasksTab';
 import { TeamReportsTab } from '@/screens/teams/TeamReportsTab';
 import { AdminDashboardPage } from '@/screens/admin/AdminDashboardPage';
@@ -72,6 +75,7 @@ export const routes = createBrowserRouter([
         errorElement: <RouteError />,
         children: [
           { path: 'overview', element: <ProjectOverviewPage /> },
+          { path: 'reports', element: <ProjectReportsPage /> },
           { path: 'tasks', element: <ProjectTasksPage /> },
           { path: 'tasks/new', element: <ProjectTaskCreatePage /> },
           { path: 'tasks/:taskId', element: <ProjectTaskEditPage /> },
@@ -95,8 +99,9 @@ export const routes = createBrowserRouter([
           { path: '', element: <Navigate to="overview" replace /> },
           { path: 'overview', element: <ClassOverviewTab /> },
           { path: 'members', element: <ClassMembersTabPage /> },
+          { path: 'teams', element: <ClassTeamsTabPage /> },
+          { path: 'projects', element: <ClassProjectsTabPage /> },
           { path: 'assignments', element: <ClassAssignmentsTabPage /> },
-          { path: 'groupTasks', element: <ClassGroupTasksTabPage /> },
           { path: 'assignments/:assignmentId', element: <ClassAssignmentDetailPage /> },
         ],
       },
@@ -108,6 +113,7 @@ export const routes = createBrowserRouter([
           { path: '', element: <Navigate to="overview" replace /> },
           { path: 'overview', element: <TeamOverviewTab /> },
           { path: 'members', element: <TeamMembersTab /> },
+          { path: 'projects', element: <TeamProjectsTab /> },
           { path: 'tasks', element: <TeamTasksTab /> },
           { path: 'reports', element: <TeamReportsTab /> },
         ],

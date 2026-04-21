@@ -173,7 +173,7 @@ class NotificationControllerIntegrationTests {
     addProjectMember(project, teammate, false);
 
     workspaceService.saveTask(
-        new TaskSaveRequest(project.getId(), "实现通知详情", "补齐路由", "TODO", teammate.getId(), null, "HIGH"),
+        new TaskSaveRequest(project.getId(), null, "实现通知详情", "补齐路由", "TODO", teammate.getId(), null, "HIGH"),
         null,
         principal(author));
     NotificationEntity taskNotification = latestNotificationFor(teammate);

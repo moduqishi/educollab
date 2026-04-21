@@ -1,4 +1,4 @@
-import type { WeeklyReportRecord } from '@/lib/types';
+import type { TaskRecord, WeeklyReportRecord } from '@/lib/types';
 
 export type TeamTaskFormPayload = {
   title: string;
@@ -17,3 +17,26 @@ export type TeamProjectFormPayload = {
 };
 
 export type WeeklyReportDraft = Omit<WeeklyReportRecord, 'id' | 'teamId' | 'authorId' | 'authorName' | 'createdAt' | 'updatedAt'>;
+
+export type TeamTaskTreeItem = {
+  id: number;
+  projectId: number;
+  title: string;
+  description: string;
+  status: TaskRecord['status'];
+  assigneeId?: number | null;
+  assigneeName?: string | null;
+  dueDate?: string | null;
+  priority: TaskRecord['priority'];
+};
+
+export type TeamProjectTaskGroup = {
+  projectId: number;
+  projectName: string;
+  projectStatus?: string | null;
+  progress: number;
+  totalTaskCount: number;
+  completedTaskCount: number;
+  canEdit: boolean;
+  items: TeamTaskTreeItem[];
+};

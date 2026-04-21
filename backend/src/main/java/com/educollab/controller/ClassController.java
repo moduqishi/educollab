@@ -50,8 +50,41 @@ public class ClassController {
   @GetMapping("/{id}/assignments")
   public List<AssignmentRecord> assignments(@PathVariable Long id) { return classroomService.assignments(id, SecurityUtils.principal()); }
 
+  @GetMapping("/{id}/teams")
+  public List<TeamRecord> teams(@PathVariable Long id) {
+    return classroomService.teams(id, SecurityUtils.principal());
+  }
+
+  @GetMapping("/{id}/projects")
+  public List<ClassProjectRecord> projects(@PathVariable Long id) {
+    return classroomService.classProjects(id, SecurityUtils.principal());
+  }
+
   @PostMapping("/{id}/assignments")
   public AssignmentRecord createAssignment(@PathVariable Long id, @RequestBody AssignmentSaveRequest request) { return classroomService.createAssignment(id, request, SecurityUtils.principal()); }
+
+  @PutMapping("/{classId}/assignments/{assignmentId}")
+  public AssignmentRecord updateAssignment(
+      @PathVariable Long classId,
+      @PathVariable Long assignmentId,
+      @RequestBody AssignmentSaveRequest request) {
+    return classroomService.updateAssignment(classId, assignmentId, request, SecurityUtils.principal());
+  }
+
+  @DeleteMapping("/{classId}/assignments/{assignmentId}")
+  public void deleteAssignment(@PathVariable Long classId, @PathVariable Long assignmentId) {
+    classroomService.deleteAssignment(classId, assignmentId, SecurityUtils.principal());
+  }
+
+  @PostMapping("/{classId}/assignments/{assignmentId}/close")
+  public AssignmentRecord closeAssignment(@PathVariable Long classId, @PathVariable Long assignmentId) {
+    return classroomService.closeAssignment(classId, assignmentId, SecurityUtils.principal());
+  }
+
+  @PostMapping("/{classId}/assignments/{assignmentId}/reopen")
+  public AssignmentRecord reopenAssignment(@PathVariable Long classId, @PathVariable Long assignmentId) {
+    return classroomService.reopenAssignment(classId, assignmentId, SecurityUtils.principal());
+  }
 
   @GetMapping("/{classId}/assignments/{assignmentId}/submissions/me")
   public AssignmentSubmissionRecord mySubmission(
@@ -65,7 +98,25 @@ public class ClassController {
       @PathVariable Long classId,
       @PathVariable Long assignmentId,
       @RequestBody AssignmentSubmissionSaveRequest request) {
-    return assignmentSubmissionService.saveMySubmission(
+    return assignmentSubmissionService.submitMySubmission(
+        classId, assignmentId, request, SecurityUtils.principal());
+  }
+
+  @PutMapping("/{classId}/assignments/{assignmentId}/submissions/me/draft")
+  public AssignmentSubmissionRecord saveMySubmissionDraft(
+      @PathVariable Long classId,
+      @PathVariable Long assignmentId,
+      @RequestBody AssignmentSubmissionSaveRequest request) {
+    return assignmentSubmissionService.saveMySubmissionDraft(
+        classId, assignmentId, request, SecurityUtils.principal());
+  }
+
+  @PostMapping("/{classId}/assignments/{assignmentId}/submissions/me/submit")
+  public AssignmentSubmissionRecord submitMySubmission(
+      @PathVariable Long classId,
+      @PathVariable Long assignmentId,
+      @RequestBody AssignmentSubmissionSaveRequest request) {
+    return assignmentSubmissionService.submitMySubmission(
         classId, assignmentId, request, SecurityUtils.principal());
   }
 

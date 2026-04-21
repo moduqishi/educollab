@@ -197,6 +197,11 @@ export function InviteDialog({ onSubmit }: { onSubmit: (email: string) => Promis
 
 export function AssignmentDialog({
   onSubmit,
+  initialValue,
+  mode = 'create',
+  triggerLabel,
+  dialogTitle,
+  submitLabel,
 }: {
   onSubmit: (payload: {
     title: string;
@@ -204,22 +209,41 @@ export function AssignmentDialog({
     submissionUrl?: string;
     dueDate?: string;
   }) => Promise<unknown>;
+  initialValue?: {
+    title?: string;
+    summary?: string;
+    submissionUrl?: string;
+    dueDate?: string;
+  };
+  mode?: 'create' | 'edit';
+  triggerLabel?: string;
+  dialogTitle?: string;
+  submitLabel?: string;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [title, setTitle] = React.useState('');
-  const [summary, setSummary] = React.useState('');
-  const [submissionUrl, setSubmissionUrl] = React.useState('');
-  const [dueDate, setDueDate] = React.useState('');
+  const [title, setTitle] = React.useState(initialValue?.title || '');
+  const [summary, setSummary] = React.useState(initialValue?.summary || '');
+  const [submissionUrl, setSubmissionUrl] = React.useState(initialValue?.submissionUrl || '');
+  const [dueDate, setDueDate] = React.useState(initialValue?.dueDate || '');
+
+  React.useEffect(() => {
+    if (!open) {
+      setTitle(initialValue?.title || '');
+      setSummary(initialValue?.summary || '');
+      setSubmissionUrl(initialValue?.submissionUrl || '');
+      setDueDate(initialValue?.dueDate || '');
+    }
+  }, [initialValue?.dueDate, initialValue?.submissionUrl, initialValue?.summary, initialValue?.title, open]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button size="sm" className="gap-1" />}>
+      <DialogTrigger render={<Button size="sm" className="gap-1" variant={mode === 'edit' ? 'outline' : 'default'} />}>
         <Plus size={14} />
-        发布作业
+        {triggerLabel || (mode === 'edit' ? '编辑作业' : '发布作业')}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>发布普通作业</DialogTitle>
+          <DialogTitle>{dialogTitle || (mode === 'edit' ? '编辑普通作业' : '发布普通作业')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
           <div className="space-y-2">
@@ -263,7 +287,7 @@ export function AssignmentDialog({
             }}
             disabled={!title.trim()}
           >
-            发布
+            {submitLabel || (mode === 'edit' ? '保存' : '发布')}
           </Button>
         </DialogFooter>
       </DialogContent>
