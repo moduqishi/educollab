@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="420" viewBox="0 0 1180 420">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#222"/>
+</marker>
+<style>
+text { font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif"; fill:#111; font-size:16px; }
+.title { font-size:26px; font-weight:700; }
+.subtitle { font-size:16px; }
+.box { fill:white; stroke:#222; stroke-width:2; rx:8; ry:8; }
+.subbox { fill:#fafafa; stroke:#222; stroke-width:1.8; rx:6; ry:6; }
+.line { stroke:#222; stroke-width:2; fill:none; marker-end:url(#arrow); }
+.dash { stroke:#222; stroke-width:2; fill:none; stroke-dasharray:8 6; marker-end:url(#arrow); }
+.thin { stroke:#222; stroke-width:1.5; fill:none; }
+.caption { font-size:20px; font-weight:700; }
+.small { font-size:14px; }
+.tiny { font-size:12px; }
+</style>
+</defs>
+<text class="title" x="40" y="40" text-anchor="start">EduCollab Git 服务处理流程图</text>
+<rect class="box" x="60" y="180" width="170" height="74"/>
+<text x="145.0" y="217.0" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">浏览器 / Git 客户端</text>
+<rect class="box" x="300" y="180" width="170" height="74"/>
+<text x="385.0" y="217.0" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">GitController</text>
+<rect class="box" x="540" y="180" width="170" height="74"/>
+<text x="625.0" y="217.0" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">GitService</text>
+<rect class="box" x="780" y="100" width="200" height="74"/>
+<text x="880.0" y="131.4" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">git_access_tokens</text>
+<text x="880.0" y="151.4" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">访问令牌</text>
+<rect class="box" x="780" y="260" width="200" height="74"/>
+<text x="880.0" y="291.4" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">git_repositories</text>
+<text x="880.0" y="311.4" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">仓库元数据</text>
+<rect class="box" x="1020" y="180" width="120" height="74"/>
+<text x="1080.0" y="211.4" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">裸仓库</text>
+<text x="1080.0" y="231.4" text-anchor="middle" dominant-baseline="middle" style="font-size:16px">*.git</text>
+<path class="line" d="M 230 217 L 300 217"/>
+<path class="line" d="M 470 217 L 540 217"/>
+<path class="line" d="M 710 217 L 1020 217"/>
+<path class="line" d="M 630 180 L 880 174"/>
+<path class="line" d="M 630 254 L 880 297"/>
+<text class="small" x="310" y="160" text-anchor="start">REST / Smart HTTP</text>
+<text class="small" x="555" y="155" text-anchor="start">仓库浏览/分支/提交</text>
+<text class="small" x="830" y="154" text-anchor="start">Basic Token 校验</text>
+<text class="caption" x="820" y="352" text-anchor="middle">图5-5 EduCollab Git 服务处理流程图</text>
+</svg>

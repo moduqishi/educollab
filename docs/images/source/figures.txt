@@ -1,0 +1,4 @@
+实验五图纸源文件说明
+1. 本目录下 generate_experiment5_svgs.py 用于生成 docs/images/*.svg
+2. 输出图纸采用黑白线框课程作业风格，便于继续转为 Word/PDF。
+3. 如需改文字或布局，修改脚本后重新执行: python3 docs/images/source/generate_experiment5_svgs.py

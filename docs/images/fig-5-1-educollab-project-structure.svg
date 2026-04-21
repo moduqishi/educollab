@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="700" viewBox="0 0 1180 700">
+<defs>
+<marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#222"/>
+</marker>
+<style>
+text { font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Arial, sans-serif"; fill:#111; font-size:16px; }
+.title { font-size:26px; font-weight:700; }
+.subtitle { font-size:16px; }
+.box { fill:white; stroke:#222; stroke-width:2; rx:8; ry:8; }
+.subbox { fill:#fafafa; stroke:#222; stroke-width:1.8; rx:6; ry:6; }
+.line { stroke:#222; stroke-width:2; fill:none; marker-end:url(#arrow); }
+.dash { stroke:#222; stroke-width:2; fill:none; stroke-dasharray:8 6; marker-end:url(#arrow); }
+.thin { stroke:#222; stroke-width:1.5; fill:none; }
+.caption { font-size:20px; font-weight:700; }
+.small { font-size:14px; }
+.tiny { font-size:12px; }
+</style>
+</defs>
+<text class="title" x="40" y="40" text-anchor="start">EduCollab 软件总体（结构）设计图集</text>
+<text class="subtitle" x="40" y="72" text-anchor="start">项目结构图 / 课程作业风格示意</text>
+<rect class="box" x="460" y="120" width="220" height="90"/>
+<text x="570.0" y="158.0" text-anchor="middle" dominant-baseline="middle" style="font-size:20px">EduCollab</text>
+<text x="570.0" y="183.0" text-anchor="middle" dominant-baseline="middle" style="font-size:20px">课程-团队-项目协作平台</text>
+<rect class="subbox" x="90" y="320" width="180" height="74"/>
+<text x="180.0" y="357.0" text-anchor="middle" dominant-baseline="middle" style="font-size:18px">前端子系统</text>
+<path class="line" d="M 570 210 L 180 320"/>
+<rect class="subbox" x="285" y="320" width="180" height="74"/>
+<text x="375.0" y="357.0" text-anchor="middle" dominant-baseline="middle" style="font-size:18px">后端子系统</text>
+<path class="line" d="M 570 210 L 375 320"/>
+<rect class="subbox" x="480" y="320" width="180" height="74"/>
+<text x="570.0" y="357.0" text-anchor="middle" dominant-baseline="middle" style="font-size:18px">协同文档子系统</text>
+<path class="line" d="M 570 210 L 570 320"/>
+<rect class="subbox" x="675" y="320" width="180" height="74"/>
+<text x="765.0" y="357.0" text-anchor="middle" dominant-baseline="middle" style="font-size:18px">Git 服务子系统</text>
+<path class="line" d="M 570 210 L 765 320"/>
+<rect class="subbox" x="870" y="320" width="180" height="74"/>
+<text x="960.0" y="357.0" text-anchor="middle" dominant-baseline="middle" style="font-size:18px">文件存储子系统</text>
+<path class="line" d="M 570 210 L 960 320"/>
+<rect class="subbox" x="220" y="510" width="180" height="74"/>
+<text x="310.0" y="547.0" text-anchor="middle" dominant-baseline="middle" style="font-size:18px">管理子系统</text>
+<path class="line" d="M 570 210 L 310 510"/>
+<rect class="subbox" x="740" y="510" width="180" height="74"/>
+<text x="830.0" y="547.0" text-anchor="middle" dominant-baseline="middle" style="font-size:18px">AI 子系统</text>
+<path class="line" d="M 570 210 L 830 510"/>
+<text class="caption" x="360" y="650" text-anchor="start">图5-1 EduCollab 系统项目结构图</text>
+</svg>
