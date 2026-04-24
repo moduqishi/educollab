@@ -1299,3 +1299,29 @@ export interface AdminActionResultRecord {
   message: string;
   affectedCount?: number | null;
 }
+
+// AI Configuration
+export interface AiConfigDetail {
+  id: number | null;
+  provider: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  enabled: boolean;
+  updatedAt: string | null;
+}
+
+export interface SaveAiConfigRequest {
+  provider?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  enabled?: boolean;
+}
+
+export interface AiConfigTestResult {
+  success: boolean;
+  message: string;
+  provider: string;
+  model: string;
+}

@@ -109,14 +109,14 @@ export function TeamsPage() {
     return matchesKeyword && matchesSource && matchesOwnership;
   });
 
-  const courseGroups = buildCourseGroups(visibleTeams.filter((team) => team.source === 'COURSE'));
+  const courseGroups = buildCourseGroups(visibleTeams.filter((team) => !team.source || team.source === 'COURSE'));
   const standaloneTeams = visibleTeams
     .filter((team) => team.source === 'STANDALONE')
     .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
 
   const metrics = {
     total: allTeams.length,
-    course: allTeams.filter((team) => team.source === 'COURSE').length,
+    course: allTeams.filter((team) => !team.source || team.source === 'COURSE').length,
     standalone: allTeams.filter((team) => team.source === 'STANDALONE').length,
     withProject: allTeams.filter((team) => team.projectId).length,
   };
@@ -230,37 +230,64 @@ export function TeamsPage() {
                 />
               }
             />
-          ) : null}
+          ) : (
+            <>
+              {courseGroups.length ? (
+                <TeamSection title="课程团队" count={courseGroups.reduce((sum, item) => sum + item.teams.length, 0)}>
+                  <div className="space-y-4">
+                    {courseGroups.map((group) => (
+                      <Card key={`${group.courseId}-${group.courseName}`} className="overflow-hidden border-border/70 shadow-sm">
+                        <CardHeader className="border-b border-border/60 bg-muted/20 px-5 py-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <CardTitle className="flex items-center gap-2 text-base">
+                                <BookOpen size={16} className="text-primary" />
+                                <span className="truncate">{group.courseName}</span>
+                              </CardTitle>
+                              <div className="mt-1 text-sm text-muted-foreground">{group.teams.length} 个团队</div>
+                            </div>
+                            {group.courseId ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-full"
+                                onClick={() => nav(`/app/classes/${group.courseId}/teams`)}
+                              >
+                                返回课程
+                              </Button>
+                            ) : null}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <div className="divide-y divide-border/60">
+                            {group.teams.map((team) => (
+                              <TeamListRow
+                                key={team.id}
+                                team={team}
+                                project={team.projectId ? projectMap.get(team.projectId) : null}
+                                currentUserId={currentUserId}
+                                isTeacher={isTeacher}
+                                onOpen={() => nav(`/app/teams/${team.id}/overview`)}
+                                onOpenCourse={() => team.courseId && nav(`/app/classes/${team.courseId}/teams`)}
+                                canInvite={currentUserId === team.leaderId}
+                                onGenerateInvite={() => generateInviteCodeM.mutateAsync(team.id).then(() => {})}
+                                inviteBusy={generateInviteCodeM.isPending}
+                              />
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </TeamSection>
+              ) : null}
 
-          {courseGroups.length ? (
-            <TeamSection title="课程团队" count={courseGroups.reduce((sum, item) => sum + item.teams.length, 0)}>
-              <div className="space-y-4">
-                {courseGroups.map((group) => (
-                  <Card key={`${group.courseId}-${group.courseName}`} className="overflow-hidden border-border/70 shadow-sm">
-                    <CardHeader className="border-b border-border/60 bg-muted/20 px-5 py-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <CardTitle className="flex items-center gap-2 text-base">
-                            <BookOpen size={16} className="text-primary" />
-                            <span className="truncate">{group.courseName}</span>
-                          </CardTitle>
-                          <div className="mt-1 text-sm text-muted-foreground">{group.teams.length} 个团队</div>
-                        </div>
-                        {group.courseId ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-full"
-                            onClick={() => nav(`/app/classes/${group.courseId}/teams`)}
-                          >
-                            返回课程
-                          </Button>
-                        ) : null}
-                      </div>
-                    </CardHeader>
+              {standaloneTeams.length ? (
+                <TeamSection title="独立团队" count={standaloneTeams.length}>
+                  <Card className="overflow-hidden border-border/70 shadow-sm">
                     <CardContent className="p-0">
                       <div className="divide-y divide-border/60">
-                        {group.teams.map((team) => (
+                        {standaloneTeams.map((team) => (
                           <TeamListRow
                             key={team.id}
                             team={team}
@@ -268,7 +295,6 @@ export function TeamsPage() {
                             currentUserId={currentUserId}
                             isTeacher={isTeacher}
                             onOpen={() => nav(`/app/teams/${team.id}/overview`)}
-                            onOpenCourse={() => team.courseId && nav(`/app/classes/${team.courseId}/teams`)}
                             canInvite={currentUserId === team.leaderId}
                             onGenerateInvite={() => generateInviteCodeM.mutateAsync(team.id).then(() => {})}
                             inviteBusy={generateInviteCodeM.isPending}
@@ -277,42 +303,27 @@ export function TeamsPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            </TeamSection>
-          ) : null}
+                </TeamSection>
+              ) : sourceFilter === 'STANDALONE' && !standaloneTeams.length ? (
+                <PageEmpty
+                  title="当前筛选下没有独立团队"
+                  message="可以创建一个不关联课程的自由协作团队。"
+                  icon={Users}
+                  action={
+                    <CreateTeamDialog
+                      courses={coursesQ.data || []}
+                      onSubmit={(payload) => createTeamStandaloneM.mutateAsync(payload).then(() => {})}
+                      busy={createTeamStandaloneM.isPending}
+                    />
+                  }
+                />
+              ) : null}
 
-          {standaloneTeams.length ? (
-            <TeamSection title="独立团队" count={standaloneTeams.length}>
-              <Card className="overflow-hidden border-border/70 shadow-sm">
-                <CardContent className="p-0">
-                  <div className="divide-y divide-border/60">
-                    {standaloneTeams.map((team) => (
-                      <TeamListRow
-                        key={team.id}
-                        team={team}
-                        project={team.projectId ? projectMap.get(team.projectId) : null}
-                        currentUserId={currentUserId}
-                        isTeacher={isTeacher}
-                        onOpen={() => nav(`/app/teams/${team.id}/overview`)}
-                        canInvite={currentUserId === team.leaderId}
-                        onGenerateInvite={() => generateInviteCodeM.mutateAsync(team.id).then(() => {})}
-                        inviteBusy={generateInviteCodeM.isPending}
-                      />
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TeamSection>
-          ) : sourceFilter !== 'COURSE' && visibleTeams.length ? (
-            <TeamSection title="独立团队" count={0}>
-              <Card className="border-dashed border-border/70 shadow-none">
-                <CardContent className="p-6 text-sm text-muted-foreground">
-                  当前筛选下没有独立团队。可以创建一个不关联课程的自由协作团队。
-                </CardContent>
-              </Card>
-            </TeamSection>
-          ) : null}
+              {!courseGroups.length && !standaloneTeams.length && sourceFilter !== 'STANDALONE' ? (
+                <PageEmpty title="当前筛选下没有可显示的团队" message="请调整筛选条件" icon={Users} />
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -403,7 +414,7 @@ function TeamListRow({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           {team.groupOrder ? <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">第 {team.groupOrder} 组</Badge> : null}
-          <Badge variant="outline" className="rounded-full">{team.source === 'COURSE' ? '课程团队' : '独立团队'}</Badge>
+          <Badge variant="outline" className="rounded-full">{team.source === 'STANDALONE' ? '独立团队' : '课程团队'}</Badge>
           <Badge variant={team.projectId ? 'default' : 'secondary'} className="rounded-full">
             {team.projectId ? '已挂项目' : '待建项目'}
           </Badge>

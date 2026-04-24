@@ -337,4 +337,20 @@ public class AdminController {
     ) {
         return adminService.projectSystemFile(SecurityUtils.principal(), projectId, path);
     }
+
+    // AI Configuration
+    @GetMapping("/ai/config")
+    public AiConfigDetail getAiConfig() {
+        return adminService.getAiConfig(SecurityUtils.principal());
+    }
+
+    @PostMapping("/ai/config")
+    public AiConfigDetail saveAiConfig(@RequestBody SaveAiConfigRequest request) {
+        return adminService.saveAiConfig(SecurityUtils.principal(), request);
+    }
+
+    @PostMapping("/ai/config/test")
+    public AiConfigTestResult testAiConfig(@RequestBody SaveAiConfigRequest request) {
+        return adminService.testAiConfig(SecurityUtils.principal(), request);
+    }
 }

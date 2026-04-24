@@ -404,7 +404,7 @@ export function TaskFormPage({
                 <SelectTrigger>
                   <SelectValue placeholder="未指派">
                     {form.assigneeId
-                      ? users.find((user) => user.id === form.assigneeId)?.name ?? '未指派'
+                      ? users?.find((user) => user.id === form.assigneeId)?.name ?? '未指派'
                       : '未指派'}
                   </SelectValue>
                 </SelectTrigger>

@@ -1231,7 +1231,7 @@ public class DemoSeedService {
           checkoutBranch(git, "main", false);
         }
       } finally {
-        deleteRecursively(workDir);
+        try { deleteRecursively(workDir); } catch (Exception ignored) {}
       }
 
       for (GitCommitRecorded commit : recorded) {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { MessageSquare, Paperclip, Send, Users, Download } from 'lucide-react';
+import { MessageSquare, Paperclip, Send, Users, Download, Smile } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApi } from '@/app/api';
 import { useAuth } from '@/app/auth';
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import type { ChatMessageRecord } from '@/lib/api-client/chat';
+import EmojiPicker, { EmojiStyle } from 'emoji-picker-react';
 
 
 export function ProjectMessagesPage() {
@@ -60,9 +61,12 @@ export function ProjectMessagesPage() {
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
   const [previewFile, setPreviewFile] = React.useState<{ fileAssetId: number; fileName: string; mimeType: string } | null>(null);
+  const [showEmoji, setShowEmoji] = React.useState(false);
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    }, 100);
   }, [messagesQ.data]);
 
   if (roomQ.isLoading) return <PageLoading label="正在加载群聊..." />;
@@ -89,7 +93,7 @@ export function ProjectMessagesPage() {
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-hidden">
           <div className="flex flex-col gap-4 p-6">
             {!messagesQ.isLoading && !messages.length ? (
               <div className="text-center text-sm text-muted-foreground py-12">暂无消息，快来发起对话吧。</div>
@@ -130,7 +134,7 @@ export function ProjectMessagesPage() {
         </ScrollArea>
 
         {/* Input */}
-        <div className="border-t p-4">
+        <div className="border-t p-4 relative">
           <div className="flex items-end gap-3">
             <input
               ref={fileRef}
@@ -163,6 +167,9 @@ export function ProjectMessagesPage() {
                 className="w-full resize-none rounded-xl border border-muted bg-muted/20 px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
               />
             </div>
+            <Button variant="outline" size="icon" onClick={() => setShowEmoji(!showEmoji)} disabled={uploadM.isPending || !room?.id}>
+              <Smile size={16} />
+            </Button>
             <Button size="icon" disabled={!text.trim() || sendM.isPending || !room?.id} onClick={() => {
               if (!text.trim() || !room?.id) return;
               sendM.mutate({ content: text.trim() });
@@ -171,6 +178,21 @@ export function ProjectMessagesPage() {
               <Send size={16} />
             </Button>
           </div>
+          {showEmoji && (
+            <div className="absolute bottom-full left-0 right-0 z-50 mb-2 bg-white shadow-lg rounded-xl border">
+              <EmojiPicker
+                searchPlaceholder="搜索表情"
+                searchClearButtonLabel="清除"
+                emojiStyle={EmojiStyle.Native}
+                skinTonesDisabled={true}
+                width="100%"
+                onEmojiClick={(e) => {
+                  setText((prev) => prev + e.emoji);
+                  setShowEmoji(false);
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 

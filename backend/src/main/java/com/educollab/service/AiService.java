@@ -3,7 +3,9 @@ package com.educollab.service;
 import com.educollab.common.exception.ApiException;
 import com.educollab.common.security.JwtPrincipal;
 import com.educollab.dto.AiDtos.*;
+import com.educollab.model.AiConfigurationEntity;
 import com.educollab.model.AiUsageLogEntity;
+import com.educollab.repo.AiConfigurationRepository;
 import com.educollab.repo.AiUsageLogRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,31 +21,40 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AiService {
-    private final String provider;
-    private final String baseUrl;
-    private final String apiKey;
-    private final String model;
+    private final AiConfigurationRepository aiConfigRepository;
     private final AiUsageLogRepository aiUsageLogRepository;
     private final AuthService authService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public AiService(@Value("${app.ai.provider:openai-compatible}") String provider,
-                     @Value("${app.ai.base-url:https://api.openai.com/v1}") String baseUrl,
-                     @Value("${app.ai.api-key:}") String apiKey,
-                     @Value("${app.ai.model:gpt-4o-mini}") String model,
+    // Fallback values from application.yml
+    @Value("${app.ai.provider:doubao}") private String fallbackProvider;
+    @Value("${app.ai.base-url:https://ark.cn-beijing.volces.com/api/v3}") private String fallbackBaseUrl;
+    @Value("${app.ai.api-key:}") private String fallbackApiKey;
+    @Value("${app.ai.model:doubao-pro-32k}") private String fallbackModel;
+
+    public AiService(AiConfigurationRepository aiConfigRepository,
                      AiUsageLogRepository aiUsageLogRepository,
                      AuthService authService) {
-        this.provider = provider;
-        this.baseUrl = baseUrl;
-        this.apiKey = apiKey;
-        this.model = model;
+        this.aiConfigRepository = aiConfigRepository;
         this.aiUsageLogRepository = aiUsageLogRepository;
         this.authService = authService;
     }
 
+    private AiConfigurationEntity getActiveConfig() {
+        return aiConfigRepository.findTopByOrderByIdDesc().orElse(null);
+    }
+
     @Transactional
     public AiReply ask(AiRequest request, JwtPrincipal principal) {
-        if (apiKey == null || apiKey.isBlank()) throw new ApiException("AI 模型未配置，请设置 API Key");
+        AiConfigurationEntity config = getActiveConfig();
+        String provider = config != null ? config.getProvider() : fallbackProvider;
+        String baseUrl = config != null ? config.getBaseUrl() : fallbackBaseUrl;
+        String apiKey = config != null ? config.getApiKey() : fallbackApiKey;
+        String model = config != null ? config.getModel() : fallbackModel;
+
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new ApiException("AI 模型未配置，请联系管理员");
+        }
         String scenario = request.scenario() == null || request.scenario().isBlank() ? "general" : request.scenario();
         try {
             String systemPrompt = "你是 EduCollab 的课程协作 AI 助手，负责项目周报、任务拆解、风险提示、文档摘要和讨论总结。请用简洁中文回答。";
@@ -63,15 +74,15 @@ public class AiService {
             if (response.statusCode() >= 300) throw new ApiException("AI 调用失败: " + response.body());
             JsonNode json = objectMapper.readTree(response.body());
             String content = json.path("choices").path(0).path("message").path("content").asText();
-            saveLog(principal, scenario, true, request.prompt());
+            saveLog(principal, scenario, true, request.prompt(), model);
             return new AiReply(content, provider, model);
         } catch (Exception ex) {
-            saveLog(principal, scenario, false, request.prompt());
+            saveLog(principal, scenario, false, request.prompt(), model);
             throw ex instanceof ApiException ? (ApiException) ex : new ApiException("AI 调用异常: " + ex.getMessage());
         }
     }
 
-    private void saveLog(JwtPrincipal principal, String scenario, boolean success, String prompt) {
+    private void saveLog(JwtPrincipal principal, String scenario, boolean success, String prompt, String model) {
         AiUsageLogEntity entity = new AiUsageLogEntity();
         entity.setUser(authService.getUser(principal.userId()));
         entity.setScenario(scenario);

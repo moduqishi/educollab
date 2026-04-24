@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Paperclip, Send, Upload, Users, Download, Search, X } from 'lucide-react';
+import { MessageSquare, Paperclip, Send, Upload, Users, Download, Search, X, Smile } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import type { ChatMessageRecord, ChatRoomRecord } from '@/lib/api-client/chat';
+import EmojiPicker, { EmojiStyle } from 'emoji-picker-react';
 
 export function MessagesPage() {
   const api = useApi();
@@ -84,7 +85,9 @@ export function MessagesPage() {
   const [previewFile, setPreviewFile] = React.useState<{ fileAssetId: number; fileName: string; mimeType: string } | null>(null);
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    }, 100);
   }, [messagesQ.data]);
 
   const rooms = ((roomsQ.data || []) as ChatRoomRecord[]).filter(r =>
@@ -175,7 +178,7 @@ export function MessagesPage() {
             </div>
 
             {/* Messages */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 overflow-hidden">
               <div className="flex flex-col gap-4 p-6">
                 {((messagesQ.data || []) as ChatMessageRecord[]).slice().reverse().map((msg) => (
                   <ChatMessage key={msg.id} msg={msg} isOwn={msg.authorId === session?.profile.id} api={api} onPreview={setPreviewFile} />
@@ -256,6 +259,7 @@ function ChatMessage({ msg, isOwn, api, onPreview }: { msg: ChatMessageRecord; i
 
 function ChatInput({ onSend, onUpload, sending }: { onSend: (content: string) => void; onUpload: (file: File) => void; sending: boolean }) {
   const [text, setText] = React.useState('');
+  const [showEmoji, setShowEmoji] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleSend = () => {
@@ -265,7 +269,7 @@ function ChatInput({ onSend, onUpload, sending }: { onSend: (content: string) =>
   };
 
   return (
-    <div className="border-t bg-white p-4">
+    <div className="border-t bg-white p-4 relative">
       <div className="flex items-end gap-3">
         <input
           ref={fileRef}
@@ -296,10 +300,28 @@ function ChatInput({ onSend, onUpload, sending }: { onSend: (content: string) =>
             className="w-full resize-none rounded-xl border border-muted bg-muted/20 px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"
           />
         </div>
+        <Button variant="outline" size="icon" onClick={() => setShowEmoji(!showEmoji)} disabled={sending}>
+          <Smile size={16} />
+        </Button>
         <Button size="icon" onClick={handleSend} disabled={sending || !text.trim()}>
           <Send size={16} />
         </Button>
       </div>
+      {showEmoji && (
+        <div className="absolute bottom-full left-0 right-0 z-50 mb-2 bg-white shadow-lg rounded-xl border">
+          <EmojiPicker
+            searchPlaceholder="搜索表情"
+            searchClearButtonLabel="清除"
+            emojiStyle={EmojiStyle.Native}
+            skinTonesDisabled={true}
+            width="100%"
+            onEmojiClick={(e) => {
+              setText((prev) => prev + e.emoji);
+              setShowEmoji(false);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

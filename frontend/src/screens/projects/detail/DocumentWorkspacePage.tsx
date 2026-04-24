@@ -24,6 +24,7 @@ import {
   RotateCcw,
   Send,
   Share2,
+  Smile,
   Strikethrough,
   Table,
   Upload,
@@ -50,6 +51,7 @@ import { cn } from '@/lib/utils';
 import { COLLAB_BASE, stripHtml } from '@/lib/mappers';
 import type { FileAssetRecord } from '@/lib/types';
 import { OfficeDocumentWorkspace } from '@/screens/projects/detail/OfficeDocumentWorkspace';
+import EmojiPicker, { EmojiStyle } from 'emoji-picker-react';
 
 type AwarenessUser = { id: number | string; name: string; avatar?: string };
 
@@ -692,9 +694,12 @@ function ProjectChatSidebar({ projectId }: { projectId: number }) {
   const fileRef = React.useRef<HTMLInputElement | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
   const [previewFile, setPreviewFile] = React.useState<{ fileAssetId: number; fileName: string; mimeType: string } | null>(null);
+  const [showEmoji, setShowEmoji] = React.useState(false);
 
   React.useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ block: 'end' });
+    }, 100);
   }, [messagesQ.data]);
 
   if (roomQ.isLoading) return <div className="p-4 text-sm text-muted-foreground">正在加载群聊...</div>;
@@ -711,7 +716,7 @@ function ProjectChatSidebar({ projectId }: { projectId: number }) {
         <div className="mt-1 text-xs text-muted-foreground">{roomQ.data?.memberCount || 0} 人</div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 overflow-hidden">
         <div className="flex flex-col gap-3 p-3">
           {!messagesQ.isLoading && !messages.length ? (
             <div className="text-center text-xs text-muted-foreground py-8">暂无消息</div>
@@ -770,7 +775,7 @@ function ProjectChatSidebar({ projectId }: { projectId: number }) {
         </div>
       </ScrollArea>
 
-      <div className="border-t p-3">
+      <div className="border-t p-3 relative">
         <div className="flex items-end gap-2">
           <input ref={fileRef} type="file" className="hidden"
             onChange={async (e) => {
@@ -796,6 +801,9 @@ function ProjectChatSidebar({ projectId }: { projectId: number }) {
             placeholder="发送消息..."
             className="flex-1 h-9 rounded-xl border border-muted bg-muted/20 px-3 text-xs outline-none focus:border-primary"
           />
+          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setShowEmoji(!showEmoji)} disabled={uploadM.isPending || !roomQ.data?.id}>
+            <Smile size={14} />
+          </Button>
           <Button size="icon" className="h-9 w-9 shrink-0" disabled={!text.trim() || sendM.isPending || !roomQ.data?.id} onClick={() => {
             if (!text.trim() || !roomQ.data?.id) return;
             sendM.mutate({ content: text.trim() });
@@ -804,6 +812,21 @@ function ProjectChatSidebar({ projectId }: { projectId: number }) {
             <Send size={14} />
           </Button>
         </div>
+        {showEmoji && (
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 bg-white shadow-lg rounded-xl border">
+            <EmojiPicker
+              searchPlaceholder="搜索表情"
+              searchClearButtonLabel="清除"
+              emojiStyle={EmojiStyle.Native}
+              skinTonesDisabled={true}
+              width="100%"
+              onEmojiClick={(e) => {
+                setText((prev) => prev + e.emoji);
+                setShowEmoji(false);
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {previewFile && (

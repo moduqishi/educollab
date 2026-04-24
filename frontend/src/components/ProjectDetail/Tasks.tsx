@@ -124,10 +124,10 @@ export function Tasks({ detail }: { detail: ProjectDetail }) {
     },
   });
 
-  const activeMilestone = detail.milestones.find((item) => item.status === 'ACTIVE') || detail.milestones[0] || null;
+  const activeMilestone = detail.milestones?.find((item) => item.status === 'ACTIVE') || detail.milestones?.[0] || null;
   const canDeleteMilestone = !!session?.profile && (
     session.profile.role === 'TEACHER' ||
-    detail.members.some((member) => member.id === session.profile.id && member.owner)
+    (detail.members?.some((member) => member.id === session.profile.id && member.owner) ?? false)
   );
   const filteredGroups = milestoneTaskGroups
     .map((group) => filterMilestoneGroup(group, filter, session?.profile.id))
@@ -167,17 +167,17 @@ export function Tasks({ detail }: { detail: ProjectDetail }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2">
             {[
-              { value: 'ALL', label: '全部', count: detail.tasks.length },
-              { value: 'OPEN', label: '未完成', count: detail.tasks.filter((task) => task.status !== 'DONE').length },
-              { value: 'DONE', label: '已完成', count: detail.tasks.filter((task) => task.status === 'DONE').length },
-              { value: 'MINE', label: '仅我负责', count: detail.tasks.filter((task) => task.assigneeId === session?.profile.id).length },
+              { value: 'ALL', label: '全部', count: detail.tasks?.length ?? 0 },
+              { value: 'OPEN', label: '未完成', count: detail.tasks?.filter((task) => task.status !== 'DONE').length ?? 0 },
+              { value: 'DONE', label: '已完成', count: detail.tasks?.filter((task) => task.status === 'DONE').length ?? 0 },
+              { value: 'MINE', label: '仅我负责', count: detail.tasks?.filter((task) => task.assigneeId === session?.profile.id).length ?? 0 },
             ].map((item) => (
               <Button key={item.value} variant={filter === item.value ? 'default' : 'outline'} size="sm" onClick={() => setFilter(item.value as typeof filter)}>
                 {item.label} · {item.count}
               </Button>
           ))}
         </div>
-        <div className="text-sm text-muted-foreground">{detail.milestones.length} 个阶段 · {detail.tasks.length} 条任务</div>
+        <div className="text-sm text-muted-foreground">{detail.milestones?.length ?? 0} 个阶段 · {detail.tasks?.length ?? 0} 条任务</div>
       </div>
 
       <div className="space-y-4">

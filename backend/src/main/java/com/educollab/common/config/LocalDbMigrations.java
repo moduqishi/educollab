@@ -123,6 +123,7 @@ public class LocalDbMigrations implements ApplicationRunner {
 
     backfillProjectProgress();
     ensureProjectActivityIndexes();
+    ensureAiConfigurationTable();
   }
 
   private void ensureProjectMilestonesTable() {
@@ -389,5 +390,25 @@ public class LocalDbMigrations implements ApplicationRunner {
     } catch (Exception ignored) {
       // best-effort migration for local dev only
     }
+  }
+
+  private void ensureAiConfigurationTable() {
+    jdbc.execute("""
+        CREATE TABLE IF NOT EXISTS ai_configuration (
+          id BIGINT PRIMARY KEY AUTO_INCREMENT,
+          provider VARCHAR(40) NOT NULL DEFAULT 'doubao',
+          base_url VARCHAR(255) NOT NULL DEFAULT 'https://ark.cn-beijing.volces.com/api/v3',
+          api_key VARCHAR(500),
+          model VARCHAR(100) NOT NULL DEFAULT 'doubao-pro-32k',
+          enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NOT NULL,
+          updated_at TIMESTAMP NOT NULL
+        )
+        """);
+    jdbc.execute("""
+        INSERT INTO ai_configuration (provider, base_url, model, enabled, created_at, updated_at)
+        SELECT 'doubao', 'https://ark.cn-beijing.volces.com/api/v3', 'doubao-pro-32k', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        WHERE NOT EXISTS (SELECT 1 FROM ai_configuration)
+        """);
   }
 }

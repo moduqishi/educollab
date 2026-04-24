@@ -18,7 +18,7 @@ export function ProjectTaskEditPage() {
 
   React.useEffect(() => setTitle([detail.project.name, '编辑任务']), [detail.project.name]);
 
-  const task = detail.tasks.find((item) => item.id === id);
+  const task = detail.tasks?.find((item) => item.id === id);
   const attachmentsQ = useQuery({
     queryKey: ['taskFiles', id],
     queryFn: () => api.files('TASK', id),

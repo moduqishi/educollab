@@ -39,6 +39,8 @@ export function TeamReportsTab() {
   if (q.isError || !q.data) return <PageError title="团队总结加载失败" onRetry={() => q.refetch()} />;
 
   const report = q.data;
+  const leaderboard = Array.isArray(report.leaderboard) ? report.leaderboard : [];
+  const weeklyBreakdowns = Array.isArray(report.weeklyDigest?.breakdowns) ? report.weeklyDigest.breakdowns : [];
 
   return (
     <div className="space-y-6">
@@ -66,7 +68,7 @@ export function TeamReportsTab() {
       </Card>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <SummaryLeaderboardCard title="本周团队贡献榜" items={report.leaderboard.slice(0, 6)} emptyText="本周还没有成员总结数据。" />
+        <SummaryLeaderboardCard title="本周团队贡献榜" items={leaderboard.slice(0, 6)} emptyText="本周还没有成员总结数据。" />
         <Card className="border-muted/70">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -74,13 +76,13 @@ export function TeamReportsTab() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {report.weeklyDigest.breakdowns.slice(0, 5).map((item) => (
+            {weeklyBreakdowns.slice(0, 5).map((item) => (
               <div key={item.key} className="rounded-2xl border px-4 py-3">
                 <div className="font-medium">{item.label}</div>
                 <div className="mt-1 text-sm text-muted-foreground">{item.eventCount} 次有效行为 · {item.contributionScore.toFixed(1)} 分</div>
               </div>
             ))}
-            {!report.weeklyDigest.breakdowns.length ? (
+            {!weeklyBreakdowns.length ? (
               <div className="rounded-2xl border border-dashed px-4 py-6 text-sm text-muted-foreground">本周还没有可展示的有效行为。</div>
             ) : null}
           </CardContent>

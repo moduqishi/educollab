@@ -263,12 +263,8 @@ public class WorkspaceService {
         boolean adminView = principal.role() == UserRole.ADMIN;
         ProjectEntity project = projectRepository.findByTeamId(teamId).orElse(null);
         List<TeamMemberRecord> members = teamMemberRepository.findByTeamId(teamId).stream()
-            .map(member -> new TeamMemberRecord(
-                member.getUser().getId(),
-                member.getUser().getName(),
-                member.getUser().getEmail(),
-                member.getUser().getAvatar(),
-                team.getLeader() != null && team.getLeader().getId().equals(member.getUser().getId())))
+            .map(member -> toTeamMemberRecord(team, member))
+            .filter(Objects::nonNull)
             .toList();
         List<TeamTaskRecord> tasks = groupTaskTeamTaskRepository.findByTeamIdOrderByCreatedAtDesc(teamId).stream()
             .map(this::toTeamTaskRecord)
@@ -1189,16 +1185,45 @@ public class WorkspaceService {
     }
 
     private TeamTaskRecord toTeamTaskRecord(GroupTaskTeamTaskEntity entity) {
+        Long assigneeId = null;
+        String assigneeName = null;
+        try {
+            if (entity.getAssignee() != null) {
+                assigneeId = entity.getAssignee().getId();
+                assigneeName = entity.getAssignee().getName();
+            }
+        } catch (RuntimeException ignored) {
+            // Ignore broken assignee relations to keep team tasks endpoint resilient.
+        }
+
         return new TeamTaskRecord(
             entity.getId(),
             entity.getTeam() != null ? entity.getTeam().getId() : null,
             entity.getTitle(),
             entity.getDescription(),
             entity.getStatus() != null ? entity.getStatus().name() : null,
-            entity.getAssignee() != null ? entity.getAssignee().getId() : null,
-            entity.getAssignee() != null ? entity.getAssignee().getName() : null,
+            assigneeId,
+            assigneeName,
             entity.getDueDate() != null ? entity.getDueDate().toString() : null,
             entity.getCreatedAt() != null ? formatter.format(entity.getCreatedAt()) : null);
+    }
+
+    private TeamMemberRecord toTeamMemberRecord(TeamEntity team, TeamMemberEntity member) {
+        try {
+            UserEntity user = member.getUser();
+            if (user == null || user.getId() == null) {
+                return null;
+            }
+            return new TeamMemberRecord(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getAvatar(),
+                team.getLeader() != null && team.getLeader().getId().equals(user.getId()));
+        } catch (RuntimeException ignored) {
+            // Ignore broken member relations to avoid failing whole team detail response.
+            return null;
+        }
     }
 
     private void cleanupEmptyTeam(TeamEntity team) {

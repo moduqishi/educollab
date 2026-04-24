@@ -29,10 +29,10 @@ app:
   logs:
     root: ${LOG_ARCHIVE_ROOT:./data/logs}
   ai:
-    provider: ${AI_PROVIDER:openai-compatible}
-    base-url: ${AI_BASE_URL:https://api.openai.com/v1}
+    provider: ${AI_PROVIDER:doubao}
+    base-url: ${AI_BASE_URL:https://ark.cn-beijing.volces.com/api/v3}
     api-key: ${AI_API_KEY:}
-    model: ${AI_MODEL:gpt-4o-mini}
+    model: ${AI_MODEL:doubao-pro-32k}
   demo:
     seed-mode: ${DEMO_SEED_MODE:OFF}
 management:
