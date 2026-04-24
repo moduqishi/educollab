@@ -1,28 +1,46 @@
-# EduCollab
+# 🎓 EduCollab
+
+[![License](https://img.shields.io/github/license/ilovemajiaqi/educollab?style=flat-square)](https://github.com/ilovemajiaqi/educollab/blob/main/LICENSE)
+[![Java](https://img.shields.io/badge/Java-21-blue?style=flat-square)](https://openjdk.org/projects/jdk/21/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.4-green?style=flat-square)](https://spring.io/projects/spring-boot)
+[![Node](https://img.shields.io/badge/Node-20+-yellow?style=flat-square)](https://nodejs.org/)
+[![Maven](https://img.shields.io/maven-central/v/com.educollab/educollab-backend?color=orange&style=flat-square)](https://search.maven.org/artifact/com.educollab/educollab-backend)
+[![Stars](https://img.shields.io/github/stars/ilovemajiaqi/educollab?style=flat-square)](https://github.com/ilovemajiaqi/educollab/stargazers)
+[![Forks](https://img.shields.io/github/forks/ilovemajiaqi/educollab?style=flat-square)](https://github.com/ilovemajiaqi/educollab/network/members)
 
 面向课程/团队协作的一体化平台：**团队 / 项目 / 任务 / 讨论 / 协同文档 / 文件 / 通知 / Git / AI** 全流程闭环。
 
-这份 README 以“成熟项目交接文档”的标准来写：你可以用它快速跑起来，也可以据此定位模块边界、关键链路和排障入口。图形全部使用 GitHub/GitLab 可直接渲染的 **Mermaid**。
+> 这份 README 以"成熟项目交接文档"的标准来写：你可以用它快速跑起来，也可以据此定位模块边界、关键链路和排障入口。图形全部使用 GitHub/GitLab 可直接渲染的 **Mermaid**。
+
+---
+
+## Quick Stats
+
+| | |
+|---|---|
+| **GitHub** | [![Stars](https://img.shields.io/github/stars/ilovemajiaqi/educollab?style=flat-square)](https://github.com/ilovemajiaqi/educollab/stargazers) &nbsp;[![Forks](https://img.shields.io/github/forks/ilovemajiaqi/educollab?style=flat-square)](https://github.com/ilovemajiaqi/educollab/network/members) &nbsp;[![Issues](https://img.shields.io/github/issues/ilovemajiaqi/educollab?style=flat-square)](https://github.com/ilovemajiaqi/educollab/issues) |
+| **Languages** | TypeScript (Frontend) · Java (Backend) · JavaScript (Collab) |
+| **Versions** | Backend `0.2.0` · Collab `0.1.0` · Java 21 · Node 20+ |
+| **License** | Apache-2.0 |
 
 ---
 
 ## 目录
 
-- [能力概览](#能力概览)
-- [技术栈](#技术栈)
-- [快速开始](#快速开始)
-- [架构](#架构)
-- [关键流程](#关键流程)
-- [数据模型](#数据模型)
-- [模块边界与接口](#模块边界与接口)
-- [配置](#配置)
-- [排障](#排障)
-- [测试](#测试)
-- [仓库结构与源码导航](#仓库结构与源码导航)
+- [⚡ 能力概览](#能力概览)
+- [🛠 技术栈](#技术栈)
+- [🚀 快速开始](#快速开始)
+- [🏗 架构](#架构)
+- [🔄 关键流程](#关键流程)
+- [🗄 数据模型](#数据模型)
+- [⚙ 配置](#配置)
+- [🔧 排障](#排障)
+- [🧪 测试](#测试)
+- [🤝 社区与贡献](#社区与贡献)
 
 ---
 
-## 能力概览
+## ⚡ 能力概览
 
 - **身份与权限**：JWT 鉴权，接口分层（学生/教师）、Git Smart HTTP 单独走 Basic Token
 - **项目空间**：项目/成员/任务（状态流转）/讨论（回复 + 任务关联）/通知
@@ -35,7 +53,7 @@
 
 ---
 
-## 技术栈
+## 🛠 技术栈
 
 | 模块 | 技术栈 |
 |---|---|
@@ -45,7 +63,7 @@
 
 ---
 
-## 快速开始
+## 🚀 快速开始
 
 ### 端口与地址
 
@@ -141,7 +159,7 @@ chmod +x scripts/*.sh
 
 ---
 
-## 架构
+## 🏗 架构
 
 ### 组件与边界（Mermaid）
 
@@ -162,7 +180,7 @@ flowchart LR
 
 ---
 
-## 关键流程
+## 🔄 关键流程
 
 ### 项目空间日常闭环（Mermaid）
 
@@ -183,9 +201,9 @@ flowchart TD
 
 ---
 
-## 关键链路（时序图）
+### 关键链路（时序图）
 
-### 登录与鉴权（JWT）
+#### 登录与鉴权（JWT）
 
 ```mermaid
 sequenceDiagram
@@ -200,7 +218,7 @@ sequenceDiagram
   BE-->>FE: 200 OK
 ```
 
-### 协同文档：实时编辑 + 自动保存 + 版本快照
+#### 协同文档：实时编辑 + 自动保存 + 版本快照
 
 ```mermaid
 sequenceDiagram
@@ -224,7 +242,7 @@ sequenceDiagram
   BE-->>FE1: 200（返回 DocumentRecord）
 ```
 
-### Git Clone / Pull / Push（Smart HTTP + Basic Token）
+#### Git Clone / Pull / Push（Smart HTTP + Basic Token）
 
 ```mermaid
 sequenceDiagram
@@ -251,7 +269,7 @@ sequenceDiagram
 
 ---
 
-## 数据模型
+## 🗄 数据模型
 
 完整表结构见 `backend/src/main/resources/schema.sql`；这里仅画核心关系（交接最常用子集）。
 
@@ -286,36 +304,7 @@ erDiagram
 
 ---
 
-## 模块边界与接口
-
-### 职责边界（数据所有权）
-
-| 模块 | 负责什么 | 不负责什么 |
-|---|---|---|---|
-| Frontend | 路由/视图/状态、调用后端 API、连接协同服务、展示 Git/AI 结果 | 不直接访问 DB/文件系统/裸仓 |
-| Backend | 鉴权、业务聚合、持久化、文件上传下载、JGit 托管、AI 调用封装 | 不做 Yjs 同步（交给 collab-server） |
-| Collab Server | Yjs 文档实时同步与持久化（LevelDB） | 不做业务鉴权/权限（需要的话作为扩展点实现） |
-
-### API 概览（按 Controller 入口导航）
-
-| 功能 | 前缀 | Controller（锚点） |
-|---|---|---|
-| 鉴权/会话 | `/api/auth/*` | `backend/src/main/java/com/educollab/controller/AuthController.java` |
-| 用户/课程/团队 | `/api/users/*` `/api/courses/*` `/api/teams/*` | `UserController` / `CourseController` / `TeamController` |
-| 项目/仪表盘 | `/api/projects/*` | `ProjectController` |
-| 任务 | `/api/tasks/*` | `TaskController` |
-| 讨论 | `/api/discussions/*` | `DiscussionController` |
-| 文档（含版本） | `/api/documents/*` | `DocumentController` |
-| 文件资产 | `/api/files/*` | `FileController` |
-| 通知 | `/api/notifications/*` | `NotificationController` |
-| 教师端 | `/api/teacher/*` | `TeacherController` |
-| Git 管理 API | `/api/git/*` | `GitController` |
-| Git Smart HTTP | `/git/*` | `GitHttpConfig`（Servlet 注册） |
-| AI | `/api/ai/*` | `AiController` |
-
----
-
-## 配置
+## ⚙ 配置
 
 以 `.env.example` 为准（Docker / 本机都建议先复制一份 `.env`）：
 
@@ -340,7 +329,7 @@ cp .env.example .env
 
 ---
 
-## 排障
+## 🔧 排障
 
 ### 常见问题
 
@@ -371,7 +360,7 @@ cp .env.example .env
 
 ---
 
-## 测试
+## 🧪 测试
 
 ### Frontend
 
@@ -385,7 +374,7 @@ npm run lint
 
 ```bash
 cd backend
-..\.local-run\apache-maven-3.9.9\bin\mvn.cmd test
+mvn test
 ```
 
 ### 最小冒烟 Checklist
@@ -395,6 +384,31 @@ cd backend
 - [ ] 能创建/更新一个任务
 - [ ] 能打开文档并产生 autosave（查看 Network 调用 `/api/documents/:id/autosave`）
 - [ ] 代码项目能看到 clone-info，并能用 token 进行 git clone（只需验证一次）
+
+---
+
+## 🤝 社区与贡献
+
+### 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 本仓库，创建功能分支 (`git checkout -b feature/amazing-feature`)
+2. 提交更改 (`git commit -m 'Add amazing feature'`)
+3. 推送到分支 (`git push origin feature/amazing-feature`)
+4. 提交 Pull Request
+
+### 链接
+
+| | |
+|---|---|
+| **仓库** | https://github.com/ilovemajiaqi/educollab |
+| **问题** | https://github.com/ilovemajiaqi/educollab/issues |
+| **讨论** | https://github.com/ilovemajiaqi/educollab/discussions |
+
+### Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ilovemajiaqi/educollab&type=Timeline)](https://star-history.com/#ilovemajiaqi/educollab&Timeline)
 
 ---
 

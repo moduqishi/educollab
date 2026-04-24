@@ -34,7 +34,18 @@
       "Read(//c/Program Files/Maven/bin/**)",
       "Read(//c/apache-maven/bin/**)",
       "Bash(npx vite *)",
-      "Bash(git -C \"d:/小许的瞎玩日记/educollab-main\" diff --stat frontend/src/screens/teams/)"
+      "Bash(git -C \"d:/小许的瞎玩日记/educollab-main\" diff --stat frontend/src/screens/teams/)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(bash scripts/init-local-db.sh)",
+      "Bash(docker compose *)",
+      "Bash(where docker *)",
+      "Bash(net start *)",
+      "Bash(npm install *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/api/auth/login --connect-timeout 2)",
+      "Bash(git add *)",
+      "Bash(rm -rf d:/小许的瞎玩日记/educollab-main/data/courses/* cd d:/小许的瞎玩日记/educollab-main)",
+      "Bash(java -jar backend/target/educollab-backend-0.2.0.jar --spring.profiles.active=dev)"
     ]
   }
 }
