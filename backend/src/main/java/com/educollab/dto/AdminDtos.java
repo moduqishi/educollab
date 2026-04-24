@@ -484,4 +484,30 @@ public class AdminDtos {
       String message,
       Integer affectedCount
   ) {}
+
+  // AI Configuration (单套配置)
+  public record AiConfigDetail(
+      Long id,
+      String provider,
+      String baseUrl,
+      String apiKey,
+      String model,
+      boolean enabled,
+      String updatedAt
+  ) {}
+
+  public record SaveAiConfigRequest(
+      String provider,
+      String baseUrl,
+      String apiKey,
+      String model,
+      Boolean enabled
+  ) {}
+
+  public record AiConfigTestResult(
+      boolean success,
+      String message,
+      String provider,
+      String model
+  ) {}
 }

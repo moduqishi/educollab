@@ -73,6 +73,15 @@ export function createRequestClient(options: ApiClientOptions): RequestClient {
       throw new ApiError('登录状态已失效，请重新登录', 401);
     }
     if (!response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        try {
+          const payload = (await response.json()) as { message?: string };
+          throw new ApiError(payload?.message || `请求失败: ${response.status}`, response.status);
+        } catch {
+          throw new ApiError(`请求失败: ${response.status}`, response.status);
+        }
+      }
       const text = await response.text();
       throw new ApiError(text || `请求失败: ${response.status}`, response.status);
     }

@@ -35,10 +35,10 @@ export function TeamOverviewTab() {
     enabled: hasProject,
   });
 
-  const projectTasks = projectQ.data?.tasks || [];
-  const totalTaskCount = hasProject ? projectQ.data?.stats.taskCount ?? detail.project?.taskCount ?? 0 : 0;
-  const completedTaskCount = hasProject ? projectQ.data?.stats.completedTaskCount ?? detail.project?.completedTaskCount ?? 0 : 0;
-  const progress = hasProject ? projectQ.data?.project.progress ?? detail.project?.projectProgress ?? 0 : 0;
+  const projectTasks = projectQ.data?.tasks ?? [];
+  const totalTaskCount = hasProject ? projectQ.data?.stats?.taskCount ?? detail.project?.taskCount ?? 0 : 0;
+  const completedTaskCount = hasProject ? projectQ.data?.stats?.completedTaskCount ?? detail.project?.completedTaskCount ?? 0 : 0;
+  const progress = hasProject ? projectQ.data?.project?.progress ?? detail.project?.projectProgress ?? 0 : 0;
 
   const statusLabel: Record<string, string> = {
     TODO: '待办',

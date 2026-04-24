@@ -16,10 +16,17 @@ import com.educollab.repo.*;
 import com.educollab.service.workspace.ProjectProgressService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.lang.management.ManagementFactory;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -80,6 +87,7 @@ public class AdminService {
     private final GitRepositoryRepository gitRepositoryRepository;
     private final AdminAuditEventRepository adminAuditEventRepository;
     private final AdminImportJobRepository adminImportJobRepository;
+    private final AiConfigurationRepository aiConfigurationRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
     private final NotificationService notificationService;
@@ -118,6 +126,7 @@ public class AdminService {
             GitRepositoryRepository gitRepositoryRepository,
             AdminAuditEventRepository adminAuditEventRepository,
             AdminImportJobRepository adminImportJobRepository,
+            AiConfigurationRepository aiConfigurationRepository,
             PasswordEncoder passwordEncoder,
             AuthService authService,
             NotificationService notificationService,
@@ -154,6 +163,7 @@ public class AdminService {
         this.gitRepositoryRepository = gitRepositoryRepository;
         this.adminAuditEventRepository = adminAuditEventRepository;
         this.adminImportJobRepository = adminImportJobRepository;
+        this.aiConfigurationRepository = aiConfigurationRepository;
         this.passwordEncoder = passwordEncoder;
         this.authService = authService;
         this.notificationService = notificationService;
@@ -2372,6 +2382,90 @@ public class AdminService {
     ) {
         private static ScopeRef orphan() {
             return new ScopeRef(null, null, null, null, null, null, true);
+        }
+    }
+
+    // AI Configuration
+    public AiConfigDetail getAiConfig(JwtPrincipal principal) {
+        requireAdmin(principal);
+        AiConfigurationEntity config = aiConfigurationRepository.findTopByOrderByIdDesc().orElse(null);
+        if (config == null) {
+            return new AiConfigDetail(null, "doubao", "https://ark.cn-beijing.volces.com/api/v3", "", "doubao-pro-32k", true, null);
+        }
+        return new AiConfigDetail(
+            config.getId(),
+            config.getProvider(),
+            config.getBaseUrl(),
+            config.getApiKey(),
+            config.getModel(),
+            config.isEnabled(),
+            config.getUpdatedAt() != null ? formatter.format(config.getUpdatedAt()) : null
+        );
+    }
+
+    @Transactional
+    public AiConfigDetail saveAiConfig(JwtPrincipal principal, SaveAiConfigRequest request) {
+        requireAdmin(principal);
+        System.out.println(">>> saveAiConfig called, request=" + request);
+        try {
+            AiConfigurationEntity config = aiConfigurationRepository.findTopByOrderByIdDesc().orElseGet(AiConfigurationEntity::new);
+            System.out.println(">>> config found, id=" + config.getId() + ", provider=" + config.getProvider());
+            if (request.provider() != null) config.setProvider(request.provider());
+            if (request.baseUrl() != null) config.setBaseUrl(request.baseUrl());
+            if (request.apiKey() != null) config.setApiKey(request.apiKey());
+            if (request.model() != null) config.setModel(request.model());
+            if (request.enabled() != null) config.setEnabled(request.enabled());
+            System.out.println(">>> about to save, baseUrl=" + config.getBaseUrl());
+            AiConfigurationEntity saved = aiConfigurationRepository.saveAndFlush(config);
+            System.out.println(">>> saved, id=" + saved.getId());
+            return new AiConfigDetail(
+                saved.getId(),
+                saved.getProvider(),
+                saved.getBaseUrl(),
+                saved.getApiKey(),
+                saved.getModel(),
+                saved.isEnabled(),
+                saved.getUpdatedAt() != null ? formatter.format(saved.getUpdatedAt()) : null
+            );
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            throw new ApiException("保存AI配置失败: " + ex.getMessage());
+        }
+    }
+
+    public AiConfigTestResult testAiConfig(JwtPrincipal principal, SaveAiConfigRequest request) {
+        requireAdmin(principal);
+        String provider = request.provider() != null ? request.provider() : "doubao";
+        String baseUrl = request.baseUrl() != null ? request.baseUrl() : "https://ark.cn-beijing.volces.com/api/v3";
+        String apiKey = request.apiKey() != null ? request.apiKey() : "";
+        String model = request.model() != null ? request.model() : "doubao-pro-32k";
+        if (apiKey.isBlank()) {
+            return new AiConfigTestResult(false, "API Key 不能为空", provider, model);
+        }
+        try {
+            ObjectNode root = objectMapper.createObjectNode();
+            root.put("model", model);
+            root.put("max_tokens", 10);
+            ArrayNode messages = objectMapper.createArrayNode();
+            ObjectNode userMsg = objectMapper.createObjectNode();
+            userMsg.put("role", "user");
+            userMsg.put("content", "Hi");
+            messages.add(userMsg);
+            root.set("messages", messages);
+            String body = root.toString();
+            HttpRequest httpRequest = HttpRequest.newBuilder(URI.create(baseUrl + "/chat/completions"))
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .timeout(Duration.ofSeconds(30))
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+            HttpResponse<String> response = HttpClient.newHttpClient().send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() >= 300) {
+                return new AiConfigTestResult(false, "AI 返回错误: " + response.statusCode(), provider, model);
+            }
+            return new AiConfigTestResult(true, "连接成功", provider, model);
+        } catch (Exception ex) {
+            return new AiConfigTestResult(false, "连接失败: " + ex.getMessage(), provider, model);
         }
     }
 }

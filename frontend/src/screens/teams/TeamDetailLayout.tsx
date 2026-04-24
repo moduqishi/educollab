@@ -71,10 +71,13 @@ export function TeamDetailLayout() {
   if (detailQ.isError) {
     const error = detailQ.error;
     const status = error instanceof ApiError ? error.status : 500;
+    const message = error instanceof Error ? error.message : '';
+    const notFound = status === 404 || message.includes('团队不存在');
+    const forbidden = status === 403 || message.includes('无权访问该团队');
     return (
       <PageError
-        title={status === 404 ? '团队不存在' : status === 403 ? '无权访问该团队' : '团队详情加载失败'}
-        message={status === 404 ? '这支团队可能已被删除。' : status === 403 ? '你当前没有权限查看这个团队。' : '暂时无法读取团队详情，请稍后重试。'}
+        title={notFound ? '团队不存在' : forbidden ? '无权访问该团队' : '团队详情加载失败'}
+        message={notFound ? '这支团队可能已被删除。' : forbidden ? '你当前没有权限查看这个团队。' : message || '暂时无法读取团队详情，请稍后重试。'}
         onRetry={() => detailQ.refetch()}
       />
     );
@@ -83,6 +86,15 @@ export function TeamDetailLayout() {
   if (!detail) {
     return <PageError title="团队不存在" message="没有找到对应团队。" onRetry={() => detailQ.refetch()} />;
   }
+
+  const safeMembers = Array.isArray(detail.members) ? detail.members : [];
+  const safeTasks = Array.isArray(detail.tasks) ? detail.tasks : [];
+  const safeDetail: TeamDetailRecord = {
+    ...detail,
+    members: safeMembers,
+    tasks: safeTasks,
+    project: detail.project ?? null,
+  };
 
   const tabs = [
     { to: `${basePath}/overview`, label: '概览', icon: BarChart3 },
@@ -94,10 +106,10 @@ export function TeamDetailLayout() {
     ...(adminMode ? [{ to: `${basePath}/audit`, label: '审计', icon: Settings }] : []),
   ];
 
-  const teamTypeLabel = detail.source === 'COURSE' ? '课程团队' : '独立团队';
+  const teamTypeLabel = safeDetail.source === 'COURSE' ? '课程团队' : '独立团队';
 
   return (
-    <TeamDetailContext.Provider value={{ detail, refresh, currentUserId: session?.profile.id, currentUserName: session?.profile.name, teamId: id }}>
+    <TeamDetailContext.Provider value={{ detail: safeDetail, refresh, currentUserId: session?.profile.id, currentUserName: session?.profile.name, teamId: id }}>
       <div className="px-8 pt-6 pb-10">
         <div className="mx-auto max-w-[1500px]">
           <div className="flex items-start justify-between gap-6">
@@ -108,18 +120,18 @@ export function TeamDetailLayout() {
                 </Button>
                 <Badge variant="outline" className="rounded-full">{teamTypeLabel}</Badge>
                 {adminMode ? <Badge variant="secondary" className="rounded-full">管理员视图</Badge> : null}
-                {detail.groupOrder ? <Badge variant="secondary" className="rounded-full">{`第 ${detail.groupOrder} 组`}</Badge> : null}
-                <span className="truncate">{detail.courseName || '未关联课程'}</span>
+                {safeDetail.groupOrder ? <Badge variant="secondary" className="rounded-full">{`第 ${safeDetail.groupOrder} 组`}</Badge> : null}
+                <span className="truncate">{safeDetail.courseName || '未关联课程'}</span>
               </div>
-              <h1 className="mt-2 truncate text-4xl font-display font-bold tracking-tight">{detail.name}</h1>
+              <h1 className="mt-2 truncate text-4xl font-display font-bold tracking-tight">{safeDetail.name}</h1>
               <div className="mt-1 text-sm text-muted-foreground">
-                {detail.courseName || '未关联课程'} · 队长：{detail.leaderName || '未设置'}
+                {safeDetail.courseName || '未关联课程'} · 队长：{safeDetail.leaderName || '未设置'}
               </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              <Badge variant="outline" className="rounded-full">{detail.members.length} 人</Badge>
-              {detail.teacherView ? <Badge variant="secondary" className="rounded-full">教师只读视图</Badge> : null}
+              <Badge variant="outline" className="rounded-full">{safeMembers.length} 人</Badge>
+              {safeDetail.teacherView ? <Badge variant="secondary" className="rounded-full">教师只读视图</Badge> : null}
 
               <Dialog>
                 <DialogTrigger render={
@@ -130,12 +142,12 @@ export function TeamDetailLayout() {
                 <DialogContent className="max-w-[640px]">
                   <DialogHeader><DialogTitle>团队信息</DialogTitle></DialogHeader>
                   <div className="grid grid-cols-1 gap-4 py-2 md:grid-cols-2">
-                    <Field label="团队名称" value={detail.name} />
+                    <Field label="团队名称" value={safeDetail.name} />
                     <Field label="团队类型" value={teamTypeLabel} />
-                    <Field label="所属课程" value={detail.courseName || '未关联课程'} />
-                    <Field label="队长" value={detail.leaderName || '未设置'} />
-                    <Field label="状态" value={detail.status || 'FORMING'} />
-                    <Field label="成员数量" value={`${detail.members.length} 人`} />
+                    <Field label="所属课程" value={safeDetail.courseName || '未关联课程'} />
+                    <Field label="队长" value={safeDetail.leaderName || '未设置'} />
+                    <Field label="状态" value={safeDetail.status || 'FORMING'} />
+                    <Field label="成员数量" value={`${safeMembers.length} 人`} />
                   </div>
                   <DialogFooter>
                     <Button variant="outline">关闭</Button>

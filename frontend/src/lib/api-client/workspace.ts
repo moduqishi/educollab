@@ -68,6 +68,11 @@ export function createWorkspaceApi(request: RequestClient) {
     markNotificationRead: (id: number) => request<void>(`/api/notifications/${id}/read`, { method: 'POST' }),
     markAllNotificationsRead: () => request<void>('/api/notifications/read-all', { method: 'POST' }),
     aiChat: (prompt: string, scenario: string) => request<AiReply>('/api/ai/chat', { method: 'POST', body: JSON.stringify({ prompt, scenario }) }),
+    aiConfig: () => request<AiConfigDetail>('/api/admin/ai/config'),
+    saveAiConfig: (payload: SaveAiConfigRequest) =>
+      request<AiConfigDetail>('/api/admin/ai/config', { method: 'POST', body: JSON.stringify(payload) }),
+    testAiConfig: (payload: SaveAiConfigRequest) =>
+      request<AiConfigTestResult>('/api/admin/ai/config/test', { method: 'POST', body: JSON.stringify(payload) }),
   };
 }
 

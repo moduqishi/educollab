@@ -1,4 +1,6 @@
 package com.educollab.common.exception;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +22,11 @@ public class GlobalExceptionHandler {
   }
   @ExceptionHandler(Exception.class)
   public ResponseEntity<Map<String, String>> handleOther(Exception ex) {
-    String message = ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : ex.getClass().getSimpleName();
-    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", message));
+    ex.printStackTrace();
+    String msg = ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : ex.getClass().getSimpleName();
+    StringWriter sw = new StringWriter();
+    ex.printStackTrace(new PrintWriter(sw));
+    String full = sw.toString();
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", msg, "detail", full));
   }
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Send, Bot, User, Sparkles, MessageSquare, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Send, Bot, User, Sparkles, MessageSquare, Trash2, Briefcase, CheckSquare, Users, GraduationCap, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -29,6 +30,7 @@ export function AIAssistantView({ api }: { api: Api }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: 'end' });
@@ -185,6 +187,38 @@ export function AIAssistantView({ api }: { api: Api }) {
                 onClick={() => setInput('请把我接下来一周的工作拆成可执行的任务清单（含优先级和截止日期建议）。')}
               >
                 <MessageSquare size={10} /> Plan tasks
+              </button>
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-4 border-t pt-3">
+              <button
+                className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                onClick={() => navigate('/app/projects')}
+              >
+                <Briefcase size={10} /> 我的项目
+              </button>
+              <button
+                className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                onClick={() => navigate('/app/tasks')}
+              >
+                <CheckSquare size={10} /> 我的任务
+              </button>
+              <button
+                className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                onClick={() => navigate('/app/teams')}
+              >
+                <Users size={10} /> 我的团队
+              </button>
+              <button
+                className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                onClick={() => navigate('/app/classes')}
+              >
+                <GraduationCap size={10} /> 我的课程
+              </button>
+              <button
+                className="text-[10px] text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors"
+                onClick={() => navigate('/app/discussions')}
+              >
+                <MessageCircle size={10} /> 讨论区
               </button>
             </div>
           </div>

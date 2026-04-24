@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, BellRing, Database, HardDrive, RefreshCcw, Shield, Wrench } from 'lucide-react';
+import { Activity, BellRing, Bot, Database, HardDrive, RefreshCcw, Shield, Wrench } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '@/app/api';
 import { setTitle } from '@/app/title';
@@ -25,6 +25,23 @@ export function AdminSystemPage() {
   const overviewQ = useQuery({ queryKey: ['adminSystemOverview'], queryFn: () => api.adminSystemOverview() });
   const healthQ = useQuery({ queryKey: ['adminSystemHealth'], queryFn: () => api.adminSystemHealth() });
 
+  const [aiConfig, setAiConfig] = React.useState({ provider: 'doubao', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', apiKey: '', model: 'doubao-pro-32k', enabled: true });
+  const [aiTestResult, setAiTestResult] = React.useState<{ success: boolean; message: string } | null>(null);
+
+  const aiConfigQ = useQuery({
+    queryKey: ['aiConfig'],
+    queryFn: () => api.aiConfig(),
+    onSuccess: (data) => {
+      setAiConfig({
+        provider: data.provider,
+        baseUrl: data.baseUrl,
+        apiKey: data.apiKey || '',
+        model: data.model,
+        enabled: data.enabled,
+      });
+    },
+  });
+
   const refreshAll = React.useCallback(async () => {
     await Promise.all([
       qc.invalidateQueries({ queryKey: ['adminSystemOverview'] }),
@@ -35,6 +52,7 @@ export function AdminSystemPage() {
       qc.invalidateQueries({ queryKey: ['adminStorageLogs'] }),
       qc.invalidateQueries({ queryKey: ['projects'] }),
       qc.invalidateQueries({ queryKey: ['adminProjects'] }),
+      qc.invalidateQueries({ queryKey: ['aiConfig'] }),
     ]);
   }, [qc]);
 
@@ -65,6 +83,24 @@ export function AdminSystemPage() {
     onSuccess: async (result) => {
       setLastMaintenance(result.message || '已触发旧存储迁移');
       await refreshAll();
+    },
+  });
+
+  const saveAiConfigM = useMutation({
+    mutationFn: () => api.saveAiConfig({ provider: aiConfig.provider, baseUrl: aiConfig.baseUrl, apiKey: aiConfig.apiKey, model: aiConfig.model, enabled: aiConfig.enabled }),
+    onSuccess: async () => {
+      setLastMaintenance('AI 配置已保存');
+      await refreshAll();
+    },
+  });
+
+  const testAiConfigM = useMutation({
+    mutationFn: () => api.testAiConfig({ provider: aiConfig.provider, baseUrl: aiConfig.baseUrl, apiKey: aiConfig.apiKey, model: aiConfig.model }),
+    onSuccess: (result) => {
+      setAiTestResult({ success: result.success, message: result.message });
+    },
+    onError: (err: Error) => {
+      setAiTestResult({ success: false, message: err.message });
     },
   });
 
@@ -145,6 +181,31 @@ export function AdminSystemPage() {
               </div>
               <div className="rounded-2xl border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
                 {lastMaintenance || '维护动作执行结果会显示在这里，所有写操作也会进入管理员审计日志。'}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-muted/70">
+            <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Bot size={16} />AI 模型配置</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5"><Label>Provider</Label><Input value={aiConfig.provider} onChange={(e) => setAiConfig((c) => ({ ...c, provider: e.target.value }))} placeholder="doubao" /></div>
+                <div className="space-y-1.5"><Label>Model</Label><Input value={aiConfig.model} onChange={(e) => setAiConfig((c) => ({ ...c, model: e.target.value }))} placeholder="doubao-pro-32k" /></div>
+              </div>
+              <div className="space-y-1.5"><Label>Base URL</Label><Input value={aiConfig.baseUrl} onChange={(e) => setAiConfig((c) => ({ ...c, baseUrl: e.target.value }))} placeholder="https://ark.cn-beijing.volces.com/api/v3" /></div>
+              <div className="space-y-1.5"><Label>API Key</Label><Input type="password" value={aiConfig.apiKey} onChange={(e) => setAiConfig((c) => ({ ...c, apiKey: e.target.value }))} placeholder="sk-..." /></div>
+              {aiTestResult && (
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${aiTestResult.success ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                  {aiTestResult.message}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button onClick={() => testAiConfigM.mutate()} disabled={testAiConfigM.isPending || !aiConfig.apiKey.trim()}>
+                  {testAiConfigM.isPending ? '测试中...' : '测试连接'}
+                </Button>
+                <Button onClick={() => saveAiConfigM.mutate()} disabled={saveAiConfigM.isPending}>
+                  {saveAiConfigM.isPending ? '保存中...' : '保存配置'}
+                </Button>
               </div>
             </CardContent>
           </Card>
