@@ -13,6 +13,7 @@ import type {
   ProjectMemberCandidate,
   ProjectRecord,
   TaskRecord,
+  WeeklyAiSummaryRecord,
 } from '../types';
 import type { RequestClient } from './base';
 
@@ -28,6 +29,8 @@ export function createWorkspaceApi(request: RequestClient) {
       request<ProjectActivityEventRecord[]>(`/api/projects/${id}/summary/activity${buildSummaryQuery(params)}`),
     projectWeeklyReport: (id: number, weekStart?: string) =>
       request<ProjectWeeklyReportRecord>(`/api/projects/${id}/reports/weekly${weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''}`),
+    projectWeeklyAiSummary: (id: number, weekStart?: string) =>
+      request<WeeklyAiSummaryRecord>(`/api/projects/${id}/reports/weekly/ai-summary${weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''}`, { method: 'POST' }),
     projectActivity: (id: number, weekStart?: string) =>
       request<ProjectActivityEventRecord[]>(`/api/projects/${id}/activity${weekStart ? `?weekStart=${encodeURIComponent(weekStart)}` : ''}`),
     trackProjectVisit: (id: number, pageKey?: string) =>
