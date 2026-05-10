@@ -1325,3 +1325,11 @@ export interface AiConfigTestResult {
   provider: string;
   model: string;
 }
+
+export interface WeeklyAiSummaryRecord {
+  content: string;
+  provider: string;
+  model: string;
+  weekStart: string;
+  weekEnd: string;
+}

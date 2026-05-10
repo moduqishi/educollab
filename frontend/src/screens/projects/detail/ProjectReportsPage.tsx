@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Filter, UserRound } from 'lucide-react';
 import { setTitle } from '@/app/title';
 import { useApi } from '@/app/api';
@@ -7,13 +7,14 @@ import { useAuth } from '@/app/auth';
 import { useProjectDetail } from '@/screens/projects/ProjectLayout';
 import { todayIso, summaryRangeLabel } from '@/lib/project-reporting';
 import { RawLogCard, SummaryBreakdownCard, SummaryHeatmapCard, SummaryKpiGrid, SummaryLeaderboardCard, SummaryTimelineCard, SummaryTrendCard, WeeklyDigestCard } from '@/components/summary/SummaryWidgets';
+import { WeeklyAiSummaryCard } from '@/components/summary/WeeklyAiSummaryCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageError, PageLoading } from '@/screens/common/States';
-import type { MemberSummaryRecord } from '@/lib/types';
+import type { MemberSummaryRecord, WeeklyAiSummaryRecord } from '@/lib/types';
 
 const RANGE_OPTIONS = [
   { value: 'ALL', label: '全部' },
@@ -51,6 +52,20 @@ export function ProjectReportsPage() {
     return q.data.members.find((item) => item.userId === session.profile.id) || null;
   }, [q.data, session?.profile.id]);
 
+  const [aiSummary, setAiSummary] = React.useState<WeeklyAiSummaryRecord | undefined>(undefined);
+  const [aiError, setAiError] = React.useState<string | null>(null);
+
+  const aiMutation = useMutation({
+    mutationFn: () => api.projectWeeklyAiSummary(detail.project.id),
+    onSuccess: (data) => {
+      setAiSummary(data);
+      setAiError(null);
+    },
+    onError: (err: Error) => {
+      setAiError(err.message || '生成周报失败，请稍后重试');
+    },
+  });
+
   if (q.isLoading) return <PageLoading label="正在汇总项目总结..." />;
   if (q.isError || !q.data) return <PageError title="项目总结加载失败" onRetry={() => q.refetch()} />;
 
@@ -58,6 +73,13 @@ export function ProjectReportsPage() {
 
   return (
     <div className="space-y-6">
+      <WeeklyAiSummaryCard
+        data={aiSummary}
+        isLoading={aiMutation.isPending}
+        error={aiError}
+        onGenerate={() => aiMutation.mutate()}
+      />
+
       <Card className="border-muted/70">
         <CardContent className="flex flex-col gap-4 p-5">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">

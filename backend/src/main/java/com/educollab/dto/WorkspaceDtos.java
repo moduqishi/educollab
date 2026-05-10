@@ -481,6 +481,7 @@ public class WorkspaceDtos {
   public record MergeRequestSaveRequest(Long projectId, String title, String sourceBranch, String targetBranch) {}
   public record ReleaseSaveRequest(Long projectId, String version, String title, String description) {}
   public record BranchCreateRequest(Long projectId, String name) {}
+  public record WeeklyAiSummaryRecord(String content, String provider, String model, String weekStart, String weekEnd) {}
 
   // --- Chat ---
   public record ChatRoomRecord(Long id, String roomType, Long projectId, String projectName, Long courseId, String courseName, String name, int memberCount, long messageCount, String lastMessage, String lastMessageAt) {}

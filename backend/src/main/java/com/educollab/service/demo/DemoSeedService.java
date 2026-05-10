@@ -1211,7 +1211,8 @@ public class DemoSeedService {
       List<GitCommitRecorded> recorded = new ArrayList<>();
       Path workDir = Files.createTempDirectory("educollab-demo-git-");
       try (Git git = Git.init().setDirectory(workDir.toFile()).setInitialBranch("main").call()) {
-        git.remoteAdd().setName("origin").setUri(new org.eclipse.jgit.transport.URIish(bareDir.toUri().toString())).call();
+        String repoUri = "file:///" + bareDir.toFile().getAbsolutePath().replace("\\", "/");
+        git.remoteAdd().setName("origin").setUri(new org.eclipse.jgit.transport.URIish(repoUri)).call();
         for (GitCommitSeed seed : mainCommits) {
           writeFiles(workDir, seed.files());
           git.add().addFilepattern(".").call();

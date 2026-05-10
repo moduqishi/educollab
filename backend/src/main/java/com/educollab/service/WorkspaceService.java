@@ -8,6 +8,8 @@ import com.educollab.repo.*;
 import com.educollab.service.team.TeamRecordMapper;
 import com.educollab.service.workspace.ProjectProgressService;
 import com.educollab.service.workspace.WorkspaceProjectMembershipService;
+import com.educollab.dto.AiDtos.AiRequest;
+import com.educollab.dto.AiDtos.AiReply;
 import com.educollab.service.workspace.WorkspaceRecordMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -53,6 +55,7 @@ public class WorkspaceService {
     private final WorkspaceProjectMembershipService projectMembershipService;
     private final ProjectProgressService projectProgressService;
     private final ProjectActivityService projectActivityService;
+    private final AiService aiService;
     private final WorkspaceRecordMapper recordMapper;
     private final TeamRecordMapper teamRecordMapper;
     private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -63,7 +66,7 @@ public class WorkspaceService {
         new ProjectMilestoneSeed("开发实现", "进入主要实现、联调与阶段迭代。", 5),
         new ProjectMilestoneSeed("验收交付", "完成测试、演示、文档和最终交付。", 2));
 
-    public WorkspaceService(TeamRepository teamRepository, TeamMemberRepository teamMemberRepository, ClassMemberRepository classMemberRepository, GroupTaskTeamTaskRepository groupTaskTeamTaskRepository, CourseRepository courseRepository, ProjectRepository projectRepository, ProjectMilestoneRepository projectMilestoneRepository, ProjectMemberRepository projectMemberRepository, ProjectAccessService projectAccessService, TaskRepository taskRepository, DiscussionPostRepository discussionPostRepository, DiscussionReplyRepository discussionReplyRepository, DiscussionTaskLinkRepository discussionTaskLinkRepository, TaskCommentRepository taskCommentRepository, DocumentRepository documentRepository, AssignmentRepository assignmentRepository, AssignmentSubmissionRepository assignmentSubmissionRepository, TeacherFeedbackRepository teacherFeedbackRepository, AuthService authService, NotificationService notificationService, GitService gitService, FileStorageService fileStorageService, WorkspaceProjectMembershipService projectMembershipService, ProjectProgressService projectProgressService, ProjectActivityService projectActivityService, WorkspaceRecordMapper recordMapper, TeamRecordMapper teamRecordMapper) {
+    public WorkspaceService(TeamRepository teamRepository, TeamMemberRepository teamMemberRepository, ClassMemberRepository classMemberRepository, GroupTaskTeamTaskRepository groupTaskTeamTaskRepository, CourseRepository courseRepository, ProjectRepository projectRepository, ProjectMilestoneRepository projectMilestoneRepository, ProjectMemberRepository projectMemberRepository, ProjectAccessService projectAccessService, TaskRepository taskRepository, DiscussionPostRepository discussionPostRepository, DiscussionReplyRepository discussionReplyRepository, DiscussionTaskLinkRepository discussionTaskLinkRepository, TaskCommentRepository taskCommentRepository, DocumentRepository documentRepository, AssignmentRepository assignmentRepository, AssignmentSubmissionRepository assignmentSubmissionRepository, TeacherFeedbackRepository teacherFeedbackRepository, AuthService authService, NotificationService notificationService, GitService gitService, FileStorageService fileStorageService, WorkspaceProjectMembershipService projectMembershipService, ProjectProgressService projectProgressService, ProjectActivityService projectActivityService, AiService aiService, WorkspaceRecordMapper recordMapper, TeamRecordMapper teamRecordMapper) {
         this.teamRepository = teamRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.classMemberRepository = classMemberRepository;
@@ -89,6 +92,7 @@ public class WorkspaceService {
         this.projectMembershipService = projectMembershipService;
         this.projectProgressService = projectProgressService;
         this.projectActivityService = projectActivityService;
+        this.aiService = aiService;
         this.recordMapper = recordMapper;
         this.teamRecordMapper = teamRecordMapper;
     }
@@ -994,6 +998,104 @@ public class WorkspaceService {
 
     public ProjectWeeklyReportRecord projectWeeklyReport(Long projectId, LocalDate weekStart, JwtPrincipal principal) {
         return projectActivityService.projectWeeklyReport(projectId, weekStart, principal);
+    }
+
+    public WeeklyAiSummaryRecord projectWeeklyAiSummary(Long projectId, LocalDate weekStart, JwtPrincipal principal) {
+        ProjectWeeklyReportRecord report = projectActivityService.projectWeeklyReport(projectId, weekStart, principal);
+        LocalDate start = weekStart != null ? weekStart : LocalDate.now().minusWeeks(1);
+        LocalDate end = start.plusDays(6);
+        String summaryContent = generateFallbackSummary(report, start, end);
+        return new WeeklyAiSummaryRecord(
+            summaryContent,
+            "fallback",
+            "static",
+            start.toString(),
+            end.toString()
+        );
+    }
+
+    private String generateFallbackSummary(ProjectWeeklyReportRecord report, LocalDate start, LocalDate end) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## 📋 项目周报\n\n");
+        sb.append("**时间范围**：").append(start).append(" ~ ").append(end).append("\n\n");
+
+        String projectName = report != null && report.projectName() != null ? report.projectName() : "未知项目";
+        sb.append("### 📌 项目概况\n");
+        sb.append("- 项目名称：").append(projectName).append("\n");
+
+        int activeUsers = report != null && report.activeUserCount() != null ? report.activeUserCount() : 0;
+        sb.append("- 活跃成员：").append(activeUsers).append(" 人\n");
+
+        double totalScore = report != null && report.totalContributionScore() != null ? report.totalContributionScore() : 0.0;
+        sb.append("- 总贡献值：").append(String.format("%.1f", totalScore)).append("\n");
+
+        int eventCount = report != null && report.eventCount() != null ? report.eventCount() : 0;
+        sb.append("- 有效行为数：").append(eventCount).append(" 次\n\n");
+
+        if (report != null && report.memberRankings() != null && !report.memberRankings().isEmpty()) {
+            sb.append("### 🏆 成员贡献排名\n");
+            for (int i = 0; i < Math.min(5, report.memberRankings().size()); i++) {
+                UserContributionRecord m = report.memberRankings().get(i);
+                sb.append("- ").append(m.userName() != null ? m.userName() : "未知成员");
+                sb.append("：贡献值 ").append(String.format("%.1f", m.contributionScore() != null ? m.contributionScore() : 0.0));
+                sb.append("，行为 ").append(m.eventCount() != null ? m.eventCount() : 0).append(" 次\n");
+            }
+            sb.append("\n");
+        }
+
+        sb.append("### 📝 本周总结\n");
+        sb.append("本周项目整体运行平稳，团队成员积极参与协作。");
+        if (activeUsers > 0) {
+            sb.append("共有 ").append(activeUsers).append(" 名成员产生了 ").append(eventCount).append(" 次有效行为。");
+        }
+        sb.append("\n\n");
+        sb.append("### 🎯 下周展望\n");
+        sb.append("建议团队继续保持当前协作节奏，关注任务进度，按计划推进项目目标。\n");
+
+        return sb.toString();
+    }
+
+    private String buildWeeklySummaryPrompt(ProjectWeeklyReportRecord report) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是 EduCollab 的项目周报助手。请根据以下数据，用简洁中文生成一份项目周报总结。\n\n");
+        sb.append("## 项目信息\n");
+        sb.append("- 项目名称：").append(report.projectName() != null ? report.projectName() : "未知").append("\n");
+        sb.append("- 本周时间范围：").append(report.weekStart() != null ? report.weekStart() : "未知").append(" ~ ").append(report.weekEnd() != null ? report.weekEnd() : "未知").append("\n");
+        sb.append("- 活跃成员：").append(report.activeUserCount() != null ? report.activeUserCount() : 0).append("人\n");
+        sb.append("- 总贡献值：").append(String.format("%.1f", report.totalContributionScore() != null ? report.totalContributionScore() : 0.0)).append("\n");
+        sb.append("- 有效行为数：").append(report.eventCount() != null ? report.eventCount() : 0).append("\n\n");
+        if (report.breakdowns() != null && !report.breakdowns().isEmpty()) {
+            sb.append("## 行为构成\n");
+            for (ContributionBreakdownRecord b : report.breakdowns()) {
+                sb.append("- ").append(b.label()).append("：").append(b.metricValue()).append("次\n");
+            }
+            sb.append("\n");
+        }
+        if (report.memberRankings() != null && !report.memberRankings().isEmpty()) {
+            sb.append("## 成员贡献排行（Top 5）\n");
+            int count = 0;
+            for (UserContributionRecord m : report.memberRankings()) {
+                if (count >= 5) break;
+                sb.append(count + 1).append(". ").append(m.userName() != null ? m.userName() : "未知")
+                    .append(" - 贡献值").append(String.format("%.1f", m.contributionScore() != null ? m.contributionScore() : 0.0))
+                    .append("，有效行为").append(m.eventCount() != null ? m.eventCount() : 0).append("次\n");
+                count++;
+            }
+            sb.append("\n");
+        }
+        if (report.timeline() != null && !report.timeline().isEmpty()) {
+            sb.append("## 本周关键事件（按时间倒序）\n");
+            int count = 0;
+            for (ProjectActivityEventRecord e : report.timeline()) {
+                if (count >= 10) break;
+                sb.append("- [").append(e.occurredAt() != null ? e.occurredAt() : "未知").append("] ")
+                    .append(e.userName() != null ? e.userName() : "未知").append(" ")
+                    .append(e.eventType() != null ? e.eventType() : "未知").append("：").append(e.targetTitle() != null ? e.targetTitle() : "未知").append("\n");
+                count++;
+            }
+        }
+        sb.append("\n请生成一份结构化的周报总结，包含：本周概况、重点进展、成员表现、风险提示（如有），使用 markdown 格式。");
+        return sb.toString();
     }
 
     public List<ProjectActivityEventRecord> projectActivity(Long projectId, LocalDate weekStart, JwtPrincipal principal) {

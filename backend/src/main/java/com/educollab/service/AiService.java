@@ -73,22 +73,32 @@ public class AiService {
             HttpResponse<String> response = HttpClient.newHttpClient().send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() >= 300) throw new ApiException("AI 调用失败: " + response.body());
             JsonNode json = objectMapper.readTree(response.body());
-            String content = json.path("choices").path(0).path("message").path("content").asText();
+            String content = json.path("choices").path(0).path("message").path("content").asText(null);
+            if (content == null || content.isBlank()) {
+                throw new ApiException("AI 返回内容为空，请稍后重试");
+            }
             saveLog(principal, scenario, true, request.prompt(), model);
             return new AiReply(content, provider, model);
         } catch (Exception ex) {
             saveLog(principal, scenario, false, request.prompt(), model);
-            throw ex instanceof ApiException ? (ApiException) ex : new ApiException("AI 调用异常: " + ex.getMessage());
+            String detail = ex.getClass().getSimpleName() + ": " + ex.getMessage();
+            throw ex instanceof ApiException ? (ApiException) ex : new ApiException("AI 调用异常: " + detail);
         }
     }
 
     private void saveLog(JwtPrincipal principal, String scenario, boolean success, String prompt, String model) {
-        AiUsageLogEntity entity = new AiUsageLogEntity();
-        entity.setUser(authService.getUser(principal.userId()));
-        entity.setScenario(scenario);
-        entity.setModelName(model);
-        entity.setSuccess(success);
-        entity.setPromptPreview(prompt == null ? "" : prompt.substring(0, Math.min(120, prompt.length())));
-        aiUsageLogRepository.save(entity);
+        try {
+            AiUsageLogEntity entity = new AiUsageLogEntity();
+            if (principal != null && principal.userId() != null) {
+                entity.setUser(authService.getUser(principal.userId()));
+            }
+            entity.setScenario(scenario != null ? scenario : "unknown");
+            entity.setModelName(model != null ? model : "unknown");
+            entity.setSuccess(success);
+            entity.setPromptPreview(prompt == null ? "" : prompt.substring(0, Math.min(120, prompt.length())));
+            aiUsageLogRepository.save(entity);
+        } catch (Exception ignored) {
+            // Don't let logging failure affect the main operation
+        }
     }
 }
